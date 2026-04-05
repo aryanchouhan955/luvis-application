@@ -64,7 +64,7 @@ export default function StudyRoom() {
           </div>
           {showTimer && (
             <div className="mt-auto">
-              <PomodoroTimer initialMinutes={room?.timer_duration ? Math.floor(room.timer_duration / 60) : 25} />
+              <PomodoroTimer initialMinutes={room?.timer_duration ? Math.floor(room.timer_duration / 60) : 25} roomId={roomId} />
             </div>
           )}
         </div>
