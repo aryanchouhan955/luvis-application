@@ -1,40 +1,91 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { BookOpen, Clock, Target, Trophy } from "lucide-react";
 
-const studyData = [
-  { day: "Mon", hours: 2.5 },
-  { day: "Tue", hours: 3.2 },
-  { day: "Wed", hours: 1.8 },
-  { day: "Thu", hours: 4.0 },
-  { day: "Fri", hours: 2.1 },
-  { day: "Sat", hours: 5.5 },
-  { day: "Sun", hours: 3.0 },
-];
+interface UserStat {
+  date: string;
+  study_minutes: number;
+  quizzes_taken: number;
+  accuracy: number;
+}
 
-const quizData = [
-  { quiz: "Q1", accuracy: 85 },
-  { quiz: "Q2", accuracy: 72 },
-  { quiz: "Q3", accuracy: 90 },
-  { quiz: "Q4", accuracy: 68 },
-  { quiz: "Q5", accuracy: 95 },
-];
-
-const streakData = Array.from({ length: 28 }, (_, i) => ({
-  day: i + 1,
-  active: Math.random() > 0.35,
-}));
-
-const stats = [
-  { icon: Clock, label: "Study Hours", value: "22.1 hrs", color: "text-primary" },
-  { icon: Target, label: "Quiz Accuracy", value: "82%", color: "text-accent" },
-  { icon: Trophy, label: "Study Streak", value: "7 days", color: "text-yellow-500" },
-  { icon: BookOpen, label: "Rooms Joined", value: "12", color: "text-primary" },
-];
+interface Profile {
+  study_hours: number;
+  quiz_score: number;
+  study_streak: number;
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState<UserStat[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [roomCount, setRoomCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Fetch user_stats (last 7 days)
+    supabase
+      .from("user_stats")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", { ascending: true })
+      .limit(7)
+      .then(({ data }) => { if (data) setStats(data); });
+
+    // Fetch profile
+    supabase
+      .from("profiles")
+      .select("study_hours, quiz_score, study_streak")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setProfile(data); });
+
+    // Count rooms joined
+    supabase
+      .from("room_participants")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .then(({ count }) => { setRoomCount(count ?? 0); });
+  }, [user]);
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const studyData = stats.length > 0
+    ? stats.map((s) => ({
+        day: dayNames[new Date(s.date).getDay()],
+        hours: +(s.study_minutes / 60).toFixed(1),
+      }))
+    : dayNames.slice(1).concat(dayNames[0]).map((d) => ({ day: d, hours: 0 }));
+
+  const quizData = stats.length > 0
+    ? stats.filter((s) => s.quizzes_taken > 0).map((s, i) => ({
+        quiz: `Q${i + 1}`,
+        accuracy: Number(s.accuracy),
+      }))
+    : [{ quiz: "No data", accuracy: 0 }];
+
+  const totalStudyHours = profile?.study_hours ?? 0;
+  const avgAccuracy = stats.length > 0
+    ? Math.round(stats.reduce((a, s) => a + Number(s.accuracy), 0) / stats.length)
+    : 0;
+
+  const summaryStats = [
+    { icon: Clock, label: "Study Hours", value: `${totalStudyHours} hrs`, color: "text-primary" },
+    { icon: Target, label: "Avg Accuracy", value: `${avgAccuracy}%`, color: "text-accent" },
+    { icon: Trophy, label: "Study Streak", value: `${profile?.study_streak ?? 0} days`, color: "text-yellow-500" },
+    { icon: BookOpen, label: "Rooms Joined", value: String(roomCount), color: "text-primary" },
+  ];
+
+  // Streak heatmap — last 28 days
+  const streakDays = profile?.study_streak ?? 0;
+  const streakData = Array.from({ length: 28 }, (_, i) => ({
+    day: i + 1,
+    active: i >= 28 - streakDays,
+  }));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -45,7 +96,7 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
+        {summaryStats.map((s) => (
           <Card key={s.label} className="border-border/50">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
@@ -64,7 +115,7 @@ export default function Dashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle className="text-lg">Study Hours This Week</CardTitle>
+            <CardTitle className="text-lg">Study Hours</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
