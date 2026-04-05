@@ -14,7 +14,252 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      challenges: {
+        Row: {
+          challenge_id: string
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          password_hash: string
+          question_count: number
+          question_type: string
+          timer_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          password_hash: string
+          question_count?: number
+          question_type?: string
+          timer_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          password_hash?: string
+          question_count?: number
+          question_type?: string
+          timer_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          name: string
+          quiz_score: number
+          study_hours: number
+          study_streak: number
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          quiz_score?: number
+          study_hours?: number
+          study_streak?: number
+          updated_at?: string
+          user_id: string
+          username?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          quiz_score?: number
+          study_hours?: number
+          study_streak?: number
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      quiz_questions: {
+        Row: {
+          challenge_id: string
+          correct_answer: string
+          created_at: string
+          id: string
+          options: Json | null
+          question_text: string
+          question_type: string
+        }
+        Insert: {
+          challenge_id: string
+          correct_answer: string
+          created_at?: string
+          id?: string
+          options?: Json | null
+          question_text: string
+          question_type?: string
+        }
+        Update: {
+          challenge_id?: string
+          correct_answer?: string
+          created_at?: string
+          id?: string
+          options?: Json | null
+          question_text?: string
+          question_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_scores: {
+        Row: {
+          challenge_id: string
+          completed_at: string
+          id: string
+          score: number
+          total_questions: number
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed_at?: string
+          id?: string
+          score?: number
+          total_questions?: number
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed_at?: string
+          id?: string
+          score?: number
+          total_questions?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_scores_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_participants: {
+        Row: {
+          id: string
+          joined_at: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          password_hash: string
+          room_id: string
+          timer_duration: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          password_hash: string
+          room_id: string
+          timer_duration?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          password_hash?: string
+          room_id?: string
+          timer_duration?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_stats: {
+        Row: {
+          accuracy: number
+          created_at: string
+          date: string
+          id: string
+          quizzes_taken: number
+          study_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accuracy?: number
+          created_at?: string
+          date?: string
+          id?: string
+          quizzes_taken?: number
+          study_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accuracy?: number
+          created_at?: string
+          date?: string
+          id?: string
+          quizzes_taken?: number
+          study_minutes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
