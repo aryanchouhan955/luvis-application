@@ -11,13 +11,18 @@ interface Props {
 export function PomodoroTimer({ initialMinutes = 25, roomId }: Props) {
   const [seconds, setSeconds] = useState(initialMinutes * 60);
   const [running, setRunning] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<number | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isRemoteUpdate = useRef(false);
 
-  // Realtime sync
+  useEffect(() => {
+    setSeconds(initialMinutes * 60);
+    setRunning(false);
+  }, [initialMinutes]);
+
   useEffect(() => {
     if (!roomId) return;
+
     const channel = supabase.channel(`timer-${roomId}`);
     channelRef.current = channel;
 
@@ -26,23 +31,17 @@ export function PomodoroTimer({ initialMinutes = 25, roomId }: Props) {
         isRemoteUpdate.current = true;
         setSeconds(payload.payload.seconds);
         setRunning(payload.payload.running);
-        setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+        window.setTimeout(() => {
+          isRemoteUpdate.current = false;
+        }, 50);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      channelRef.current = null;
+      supabase.removeChannel(channel);
+    };
   }, [roomId]);
-
-  useEffect(() => {
-    if (running && seconds > 0) {
-      intervalRef.current = setInterval(() => {
-        setSeconds((s) => s - 1);
-      }, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running, seconds]);
 
   const broadcast = (secs: number, isRunning: boolean) => {
     if (!isRemoteUpdate.current && channelRef.current) {
@@ -53,6 +52,36 @@ export function PomodoroTimer({ initialMinutes = 25, roomId }: Props) {
       });
     }
   };
+
+  useEffect(() => {
+    if (!running) {
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    intervalRef.current = window.setInterval(() => {
+      setSeconds((current) => {
+        const next = Math.max(0, current - 1);
+
+        if (next === 0) {
+          setRunning(false);
+          broadcast(0, false);
+        }
+
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [running]);
 
   const toggle = () => {
     const next = !running;

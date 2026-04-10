@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Trophy, Check, X, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import { PomodoroTimer } from "@/components/timer/PomodoroTimer";
 import { VideoGrid } from "@/components/room/VideoGrid";
 import { MediaControls } from "@/components/room/MediaControls";
 import { useWebRTC } from "@/hooks/useWebRTC";
-import type { Json } from "@/integrations/supabase/types";
 
 interface Question {
   id: string;
@@ -53,20 +53,17 @@ export default function ChallengeRoom() {
   const [showReview, setShowReview] = useState(false);
   const [expandedReview, setExpandedReview] = useState<number | null>(null);
   const [userRank, setUserRank] = useState(0);
+  const [timerMinutes, setTimerMinutes] = useState(25);
 
-  const { localStream, participants, micOn, camOn, speakerOn, toggleMic, toggleCam, toggleSpeaker, startMedia } = useWebRTC(challengeId ? `challenge-${challengeId}` : "");
+  const { localStream, participants, micOn, camOn, speakerOn, toggleMic, toggleCam, toggleSpeaker } = useWebRTC(challengeId ? `challenge-${challengeId}` : "");
 
-  useEffect(() => { startMedia(false, false); }, []);
-
-  // Load questions from DB
   useEffect(() => {
     if (!challengeId) return;
 
     const loadQuestions = async () => {
-      // Get challenge by challenge_id
       const { data: challenge } = await supabase
         .from("challenges")
-        .select("id")
+        .select("id, timer_seconds")
         .eq("challenge_id", challengeId)
         .maybeSingle();
 
@@ -75,6 +72,8 @@ export default function ChallengeRoom() {
         setLoading(false);
         return;
       }
+
+      setTimerMinutes(Math.max(1, Math.ceil((challenge.timer_seconds ?? 1500) / 60)));
 
       const { data: qs } = await supabase
         .from("quiz_questions")
@@ -94,7 +93,6 @@ export default function ChallengeRoom() {
     loadQuestions();
   }, [challengeId]);
 
-  // Load leaderboard when finished
   useEffect(() => {
     if (!finished || !challengeId) return;
 
@@ -114,25 +112,26 @@ export default function ChallengeRoom() {
         .order("score", { ascending: false });
 
       if (scores) {
-        // Fetch emails for participants
         const enriched: ScoreEntry[] = scores.map((s) => ({
           user_id: s.user_id,
           score: s.score,
           total_questions: s.total_questions,
         }));
 
-        // Load profile names
-        const userIds = enriched.map((e) => e.user_id);
+        const userIds = enriched.map((entry) => entry.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, name, username")
           .in("user_id", userIds);
 
-        const profileMap = new Map(profiles?.map((p) => [p.user_id, p.name || p.username || p.user_id.slice(0, 8)]));
+        const profileMap = new Map(profiles?.map((profile) => [profile.user_id, profile.name || profile.username || profile.user_id.slice(0, 8)]));
 
-        setLeaderboard(enriched.map((e) => ({ ...e, email: profileMap.get(e.user_id) || e.user_id.slice(0, 8) })));
+        setLeaderboard(enriched.map((entry) => ({
+          ...entry,
+          email: profileMap.get(entry.user_id) || entry.user_id.slice(0, 8),
+        })));
 
-        const rank = enriched.findIndex((e) => e.user_id === user?.id);
+        const rank = enriched.findIndex((entry) => entry.user_id === user?.id);
         setUserRank(rank >= 0 ? rank + 1 : 0);
       }
     };
@@ -144,7 +143,7 @@ export default function ChallengeRoom() {
     const isCorrect = answer.trim().toLowerCase() === question.correct_answer.trim().toLowerCase();
 
     if (isCorrect) {
-      setScore((s) => s + 1);
+      setScore((value) => value + 1);
       toast.success("Correct! ✅");
     } else {
       toast.error(`Wrong! Correct: ${question.correct_answer}`);
@@ -159,13 +158,12 @@ export default function ChallengeRoom() {
     }]);
 
     if (currentQ + 1 < questions.length) {
-      setCurrentQ((q) => q + 1);
+      setCurrentQ((value) => value + 1);
       setAnswer("");
     } else {
       const finalScore = score + (isCorrect ? 1 : 0);
       setFinished(true);
 
-      // Save score
       if (user && challengeId) {
         const { data: challenge } = await supabase
           .from("challenges")
@@ -213,7 +211,6 @@ export default function ChallengeRoom() {
 
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
-        {/* Score summary */}
         <Card className="border-border/50 text-center mb-6">
           <CardHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full luvis-gradient">
@@ -243,7 +240,6 @@ export default function ChallengeRoom() {
           </CardContent>
         </Card>
 
-        {/* Leaderboard */}
         {leaderboard.length > 0 && (
           <Card className="border-border/50 mb-6">
             <CardHeader>
@@ -251,7 +247,7 @@ export default function ChallengeRoom() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {leaderboard.map((entry, i) => (
+                {leaderboard.map((entry, index) => (
                   <div
                     key={entry.user_id}
                     className={`flex items-center justify-between rounded-lg p-3 ${
@@ -260,9 +256,9 @@ export default function ChallengeRoom() {
                   >
                     <div className="flex items-center gap-3">
                       <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                        i === 0 ? "bg-yellow-500/20 text-yellow-500" : i === 1 ? "bg-gray-400/20 text-gray-400" : i === 2 ? "bg-orange-500/20 text-orange-500" : "bg-muted text-muted-foreground"
+                        index === 0 ? "bg-yellow-500/20 text-yellow-500" : index === 1 ? "bg-gray-400/20 text-gray-400" : index === 2 ? "bg-orange-500/20 text-orange-500" : "bg-muted text-muted-foreground"
                       }`}>
-                        #{i + 1}
+                        #{index + 1}
                       </span>
                       <span className="font-medium">{entry.email}{entry.user_id === user?.id ? " (You)" : ""}</span>
                     </div>
@@ -274,37 +270,36 @@ export default function ChallengeRoom() {
           </Card>
         )}
 
-        {/* Answer review */}
         {showReview && (
           <Card className="border-border/50">
             <CardHeader>
               <CardTitle className="text-lg">📝 Answer Review</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {answers.map((a, i) => (
-                <div key={i} className="rounded-lg border border-border overflow-hidden">
+              {answers.map((answerRecord, index) => (
+                <div key={index} className="rounded-lg border border-border overflow-hidden">
                   <button
-                    className={`flex w-full items-center gap-3 p-3 text-left ${a.isCorrect ? "bg-green-500/5" : "bg-red-500/5"}`}
-                    onClick={() => setExpandedReview(expandedReview === i ? null : i)}
+                    className={`flex w-full items-center gap-3 p-3 text-left ${answerRecord.isCorrect ? "bg-green-500/5" : "bg-red-500/5"}`}
+                    onClick={() => setExpandedReview(expandedReview === index ? null : index)}
                   >
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${a.isCorrect ? "bg-green-500/20" : "bg-red-500/20"}`}>
-                      {a.isCorrect ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-red-500" />}
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${answerRecord.isCorrect ? "bg-green-500/20" : "bg-red-500/20"}`}>
+                      {answerRecord.isCorrect ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-red-500" />}
                     </span>
-                    <span className="flex-1 text-sm font-medium">Q{i + 1}: {a.questionText}</span>
-                    {expandedReview === i ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    <span className="flex-1 text-sm font-medium">Q{index + 1}: {answerRecord.questionText}</span>
+                    {expandedReview === index ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
-                  {expandedReview === i && (
+                  {expandedReview === index && (
                     <div className="border-t border-border p-3 space-y-2 text-sm">
                       <p>
                         <span className="text-muted-foreground">Your answer: </span>
-                        <span className={a.isCorrect ? "text-green-500 font-medium" : "text-red-500 font-medium line-through"}>
-                          {a.userAnswer || "(no answer)"}
+                        <span className={answerRecord.isCorrect ? "text-green-500 font-medium" : "text-red-500 font-medium line-through"}>
+                          {answerRecord.userAnswer || "(no answer)"}
                         </span>
                       </p>
-                      {!a.isCorrect && (
+                      {!answerRecord.isCorrect && (
                         <p>
                           <span className="text-muted-foreground">Correct answer: </span>
-                          <span className="text-green-500 font-medium">{a.correctAnswer}</span>
+                          <span className="text-green-500 font-medium">{answerRecord.correctAnswer}</span>
                         </p>
                       )}
                     </div>
@@ -319,6 +314,7 @@ export default function ChallengeRoom() {
   }
 
   const question = questions[currentQ];
+  const timerChannelId = challengeId ? `challenge-${challengeId}` : undefined;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -327,17 +323,27 @@ export default function ChallengeRoom() {
         <p className="text-sm text-muted-foreground">Question {currentQ + 1}/{questions.length}</p>
       </div>
 
+      <div className="border-b border-border bg-card p-3 lg:hidden">
+        <div className="space-y-3">
+          <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
+          <PomodoroTimer initialMinutes={timerMinutes} roomId={timerChannelId} />
+          <div className="rounded-lg border border-border bg-muted/50 p-3 text-center">
+            <p className="text-xs text-muted-foreground">Your Score</p>
+            <p className="text-2xl font-bold text-primary">{score}/{questions.length}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
-        {/* Video sidebar */}
         <div className="hidden w-64 flex-col gap-2 border-r border-border bg-card p-3 lg:flex">
           <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
+          <PomodoroTimer initialMinutes={timerMinutes} roomId={timerChannelId} />
           <div className="mt-auto rounded-lg border border-border bg-muted/50 p-3 text-center">
             <p className="text-xs text-muted-foreground">Your Score</p>
             <p className="text-2xl font-bold text-primary">{score}/{questions.length}</p>
           </div>
         </div>
 
-        {/* Question panel */}
         <div className="flex flex-1 flex-col items-center justify-center p-6">
           <Card className="w-full max-w-xl border-border/50">
             <CardHeader>
@@ -347,17 +353,17 @@ export default function ChallengeRoom() {
             <CardContent className="space-y-4">
               {question.question_type === "mcq" && question.options ? (
                 <RadioGroup value={answer} onValueChange={setAnswer}>
-                  {question.options.map((opt, i) => (
-                    <div key={i} className="flex items-center space-x-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted/50">
-                      <RadioGroupItem value={opt} id={`opt-${i}`} />
-                      <Label htmlFor={`opt-${i}`} className="flex-1 cursor-pointer">{opt}</Label>
+                  {question.options.map((option, index) => (
+                    <div key={index} className="flex items-center space-x-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted/50">
+                      <RadioGroupItem value={option} id={`opt-${index}`} />
+                      <Label htmlFor={`opt-${index}`} className="flex-1 cursor-pointer">{option}</Label>
                     </div>
                   ))}
                 </RadioGroup>
               ) : (
                 <Input
                   value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
+                  onChange={(event) => setAnswer(event.target.value)}
                   placeholder="Type your answer..."
                   className="text-lg"
                 />

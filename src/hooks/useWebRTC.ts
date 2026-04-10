@@ -8,6 +8,11 @@ interface Participant {
   email?: string;
 }
 
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
+
 export function useWebRTC(channelName: string) {
   const { user } = useAuth();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -16,15 +21,101 @@ export function useWebRTC(channelName: string) {
   const [camOn, setCamOn] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const pendingIceCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  const ICE_SERVERS = [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ];
+  const upsertParticipant = useCallback((userId: string, updates: Partial<Participant>) => {
+    setParticipants((prev) => {
+      const existing = prev.find((participant) => participant.userId === userId);
 
-  const createPeerConnection = useCallback((remoteUserId: string) => {
+      if (existing) {
+        return prev.map((participant) =>
+          participant.userId === userId
+            ? {
+                ...participant,
+                ...updates,
+                userId,
+                stream: updates.stream ?? participant.stream,
+                email: updates.email ?? participant.email,
+              }
+            : participant
+        );
+      }
+
+      return [...prev, { userId, stream: updates.stream ?? null, email: updates.email }];
+    });
+  }, []);
+
+  const createOfferForPeer = useCallback(async (remoteUserId: string) => {
+    const pc = peerConnections.current.get(remoteUserId);
+
+    if (!pc || !channelRef.current || !user?.id || pc.signalingState !== "stable") {
+      return;
+    }
+
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      channelRef.current.send({
+        type: "broadcast",
+        event: "offer",
+        payload: {
+          sdp: offer,
+          from: user.id,
+          to: remoteUserId,
+        },
+      });
+    } catch (error) {
+      console.error("Offer error:", error);
+    }
+  }, [user?.id]);
+
+  const renegotiateAllPeers = useCallback(async () => {
+    await Promise.all(
+      Array.from(peerConnections.current.keys()).map((remoteUserId) => createOfferForPeer(remoteUserId))
+    );
+  }, [createOfferForPeer]);
+
+  const attachLocalTracksToPeers = useCallback((stream: MediaStream) => {
+    peerConnections.current.forEach((pc) => {
+      const existingKinds = new Set(
+        pc.getSenders().map((sender) => sender.track?.kind).filter(Boolean)
+      );
+
+      stream.getTracks().forEach((track) => {
+        if (!existingKinds.has(track.kind)) {
+          pc.addTrack(track, stream);
+          existingKinds.add(track.kind);
+        }
+      });
+    });
+  }, []);
+
+  const flushPendingIceCandidates = useCallback(async (remoteUserId: string, pc: RTCPeerConnection) => {
+    const candidates = pendingIceCandidates.current.get(remoteUserId) ?? [];
+
+    for (const candidate of candidates) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error("ICE candidate error:", error);
+      }
+    }
+
+    pendingIceCandidates.current.delete(remoteUserId);
+  }, []);
+
+  const createPeerConnection = useCallback((remoteUserId: string, email?: string) => {
+    const existingConnection = peerConnections.current.get(remoteUserId);
+
+    if (existingConnection) {
+      if (email) {
+        upsertParticipant(remoteUserId, { email });
+      }
+      return existingConnection;
+    }
+
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
     if (localStreamRef.current) {
@@ -34,13 +125,13 @@ export function useWebRTC(channelName: string) {
     }
 
     pc.onicecandidate = (event) => {
-      if (event.candidate && channelRef.current) {
+      if (event.candidate && channelRef.current && user?.id) {
         channelRef.current.send({
           type: "broadcast",
           event: "ice-candidate",
           payload: {
             candidate: event.candidate.toJSON(),
-            from: user?.id,
+            from: user.id,
             to: remoteUserId,
           },
         });
@@ -48,87 +139,116 @@ export function useWebRTC(channelName: string) {
     };
 
     pc.ontrack = (event) => {
-      setParticipants((prev) => {
-        const existing = prev.find((p) => p.userId === remoteUserId);
-        if (existing) {
-          return prev.map((p) =>
-            p.userId === remoteUserId ? { ...p, stream: event.streams[0] } : p
-          );
-        }
-        return [...prev, { userId: remoteUserId, stream: event.streams[0] }];
+      upsertParticipant(remoteUserId, {
+        stream: event.streams[0] ?? null,
+        email,
       });
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+      if (["disconnected", "failed", "closed"].includes(pc.connectionState)) {
         peerConnections.current.delete(remoteUserId);
-        setParticipants((prev) => prev.filter((p) => p.userId !== remoteUserId));
+        pendingIceCandidates.current.delete(remoteUserId);
+        setParticipants((prev) => prev.filter((participant) => participant.userId !== remoteUserId));
       }
     };
 
     peerConnections.current.set(remoteUserId, pc);
+
+    if (email) {
+      upsertParticipant(remoteUserId, { email });
+    }
+
     return pc;
-  }, [user?.id]);
+  }, [upsertParticipant, user?.id]);
 
   const startMedia = useCallback(async (audio: boolean, video: boolean) => {
+    if (!audio && !video) {
+      return null;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audio,
+        audio,
         video: video ? { width: 320, height: 240, frameRate: 15 } : false,
       });
+
       localStreamRef.current = stream;
       setLocalStream(stream);
       setMicOn(audio);
       setCamOn(video);
+
+      attachLocalTracksToPeers(stream);
+      void renegotiateAllPeers();
+
       return stream;
-    } catch (err) {
-      console.error("Media access error:", err);
+    } catch (error) {
+      console.error("Media access error:", error);
       return null;
     }
-  }, []);
+  }, [attachLocalTracksToPeers, renegotiateAllPeers]);
 
   const toggleMic = useCallback(() => {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
+
       if (audioTracks.length > 0) {
-        audioTracks.forEach((t) => (t.enabled = !t.enabled));
-        setMicOn((prev) => !prev);
+        const nextEnabled = !audioTracks[0].enabled;
+        audioTracks.forEach((track) => {
+          track.enabled = nextEnabled;
+        });
+        setMicOn(nextEnabled);
       } else if (!micOn) {
-        // Need to get audio
         navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
           const audioTrack = stream.getAudioTracks()[0];
-          localStreamRef.current?.addTrack(audioTrack);
-          peerConnections.current.forEach((pc) => {
-            pc.addTrack(audioTrack, localStreamRef.current!);
-          });
+
+          if (!audioTrack || !localStreamRef.current) {
+            return;
+          }
+
+          localStreamRef.current.addTrack(audioTrack);
+          attachLocalTracksToPeers(localStreamRef.current);
           setMicOn(true);
-        }).catch(console.error);
+          void renegotiateAllPeers();
+        }).catch((error) => {
+          console.error("Mic access error:", error);
+        });
       }
     } else {
-      startMedia(true, camOn);
+      void startMedia(true, camOn);
     }
-  }, [micOn, camOn, startMedia]);
+  }, [attachLocalTracksToPeers, camOn, micOn, renegotiateAllPeers, startMedia]);
 
   const toggleCam = useCallback(() => {
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks();
+
       if (videoTracks.length > 0) {
-        videoTracks.forEach((t) => (t.enabled = !t.enabled));
-        setCamOn((prev) => !prev);
+        const nextEnabled = !videoTracks[0].enabled;
+        videoTracks.forEach((track) => {
+          track.enabled = nextEnabled;
+        });
+        setCamOn(nextEnabled);
       } else if (!camOn) {
-        navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } }).then((stream) => {
+        navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, frameRate: 15 } }).then((stream) => {
           const videoTrack = stream.getVideoTracks()[0];
-          localStreamRef.current?.addTrack(videoTrack);
-          peerConnections.current.forEach((pc) => {
-            pc.addTrack(videoTrack, localStreamRef.current!);
-          });
+
+          if (!videoTrack || !localStreamRef.current) {
+            return;
+          }
+
+          localStreamRef.current.addTrack(videoTrack);
+          attachLocalTracksToPeers(localStreamRef.current);
           setCamOn(true);
-        }).catch(console.error);
+          void renegotiateAllPeers();
+        }).catch((error) => {
+          console.error("Camera access error:", error);
+        });
       }
     } else {
-      startMedia(micOn, true);
+      void startMedia(micOn, true);
     }
-  }, [micOn, camOn, startMedia]);
+  }, [attachLocalTracksToPeers, camOn, micOn, renegotiateAllPeers, startMedia]);
 
   const toggleSpeaker = useCallback(() => {
     setSpeakerOn((prev) => !prev);
@@ -143,42 +263,72 @@ export function useWebRTC(channelName: string) {
     channel
       .on("broadcast", { event: "user-joined" }, async ({ payload }) => {
         if (payload.userId === user.id) return;
-        const pc = createPeerConnection(payload.userId);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        channel.send({
-          type: "broadcast",
-          event: "offer",
-          payload: { sdp: offer, from: user.id, to: payload.userId },
-        });
+
+        upsertParticipant(payload.userId, { email: payload.email });
+        createPeerConnection(payload.userId, payload.email);
+        await createOfferForPeer(payload.userId);
       })
       .on("broadcast", { event: "offer" }, async ({ payload }) => {
         if (payload.to !== user.id) return;
+
         const pc = createPeerConnection(payload.from);
-        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        channel.send({
-          type: "broadcast",
-          event: "answer",
-          payload: { sdp: answer, from: user.id, to: payload.from },
-        });
+
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          await flushPendingIceCandidates(payload.from, pc);
+
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          channel.send({
+            type: "broadcast",
+            event: "answer",
+            payload: { sdp: answer, from: user.id, to: payload.from },
+          });
+        } catch (error) {
+          console.error("Answer error:", error);
+        }
       })
       .on("broadcast", { event: "answer" }, async ({ payload }) => {
         if (payload.to !== user.id) return;
+
         const pc = peerConnections.current.get(payload.from);
-        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        if (pc) {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            await flushPendingIceCandidates(payload.from, pc);
+          } catch (error) {
+            console.error("Remote description error:", error);
+          }
+        }
       })
       .on("broadcast", { event: "ice-candidate" }, async ({ payload }) => {
         if (payload.to !== user.id) return;
+
         const pc = peerConnections.current.get(payload.from);
-        if (pc) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+
+        if (!pc || !pc.remoteDescription) {
+          const queuedCandidates = pendingIceCandidates.current.get(payload.from) ?? [];
+          queuedCandidates.push(payload.candidate);
+          pendingIceCandidates.current.set(payload.from, queuedCandidates);
+          return;
+        }
+
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        } catch (error) {
+          console.error("ICE candidate error:", error);
+        }
       })
       .on("broadcast", { event: "user-left" }, ({ payload }) => {
         const pc = peerConnections.current.get(payload.userId);
-        if (pc) pc.close();
+        if (pc) {
+          pc.close();
+        }
+
         peerConnections.current.delete(payload.userId);
-        setParticipants((prev) => prev.filter((p) => p.userId !== payload.userId));
+        pendingIceCandidates.current.delete(payload.userId);
+        setParticipants((prev) => prev.filter((participant) => participant.userId !== payload.userId));
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -198,10 +348,14 @@ export function useWebRTC(channelName: string) {
       });
       peerConnections.current.forEach((pc) => pc.close());
       peerConnections.current.clear();
-      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      pendingIceCandidates.current.clear();
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+      setLocalStream(null);
+      setParticipants([]);
       supabase.removeChannel(channel);
     };
-  }, [channelName, user, createPeerConnection]);
+  }, [channelName, user, createOfferForPeer, createPeerConnection, flushPendingIceCandidates, upsertParticipant]);
 
   return {
     localStream,

@@ -15,24 +15,31 @@ interface VideoGridProps {
 
 function VideoTile({ stream, label, muted, speakerOn }: { stream: MediaStream | null; label: string; muted: boolean; speakerOn: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const hasVideo = stream?.getVideoTracks().some((track) => track.enabled && track.readyState === "live") ?? false;
+  const hasAudio = stream?.getAudioTracks().some((track) => track.enabled && track.readyState === "live") ?? false;
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.muted = muted;
-    }
-  }, [stream, muted]);
+    const mediaElement = hasVideo ? videoRef.current : audioRef.current;
 
-  useEffect(() => {
-    if (videoRef.current && !muted) {
-      videoRef.current.muted = !speakerOn;
-    }
-  }, [speakerOn, muted]);
+    if (!mediaElement) return;
 
-  const hasVideo = stream?.getVideoTracks().some((t) => t.enabled);
+    if (!stream) {
+      mediaElement.srcObject = null;
+      return;
+    }
+
+    if (mediaElement.srcObject !== stream) {
+      mediaElement.srcObject = stream;
+    }
+
+    mediaElement.muted = muted || !speakerOn;
+    void mediaElement.play().catch(() => undefined);
+  }, [hasVideo, muted, speakerOn, stream]);
 
   return (
-    <div className="relative flex aspect-video items-center justify-center rounded-lg bg-muted overflow-hidden">
+    <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-muted">
       {stream && hasVideo ? (
         <video
           ref={videoRef}
@@ -42,6 +49,7 @@ function VideoTile({ stream, label, muted, speakerOn }: { stream: MediaStream | 
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center">
+          {!muted && stream && hasAudio ? <audio ref={audioRef} autoPlay className="hidden" /> : null}
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-lg font-bold text-primary">
             {label.charAt(0).toUpperCase()}
           </span>
@@ -58,20 +66,27 @@ export function VideoGrid({ localStream, participants, speakerOn }: VideoGridPro
   const { user } = useAuth();
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Participants</p>
-      <VideoTile stream={localStream} label={user?.email?.split("@")[0] || "You"} muted={true} speakerOn={speakerOn} />
-      {participants.map((p) => (
+    <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
+      <p className="col-span-full mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        Participants
+      </p>
+      <VideoTile
+        stream={localStream}
+        label={user?.email?.split("@")[0] || "You"}
+        muted={true}
+        speakerOn={speakerOn}
+      />
+      {participants.map((participant) => (
         <VideoTile
-          key={p.userId}
-          stream={p.stream}
-          label={p.email?.split("@")[0] || p.userId.slice(0, 6)}
+          key={participant.userId}
+          stream={participant.stream}
+          label={participant.email?.split("@")[0] || participant.userId.slice(0, 6)}
           muted={false}
           speakerOn={speakerOn}
         />
       ))}
       {participants.length === 0 && (
-        <div className="flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
+        <div className="col-span-full flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
           Waiting for others...
         </div>
       )}

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock } from "lucide-react";
@@ -15,12 +14,13 @@ import { useWebRTC } from "@/hooks/useWebRTC";
 
 export default function StudyRoom() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [room, setRoom] = useState<any>(null);
-  const [showTimer, setShowTimer] = useState(false);
+  const [showTimer, setShowTimer] = useState(true);
 
-  const { localStream, participants, micOn, camOn, speakerOn, toggleMic, toggleCam, toggleSpeaker, startMedia } = useWebRTC(roomId || "");
+  const { localStream, participants, micOn, camOn, speakerOn, toggleMic, toggleCam, toggleSpeaker } = useWebRTC(roomId || "");
+
+  const timerMinutes = room?.timer_duration ? Math.max(1, Math.ceil(room.timer_duration / 60)) : 25;
 
   useEffect(() => {
     if (!roomId) return;
@@ -32,11 +32,6 @@ export default function StudyRoom() {
       .then(({ data }) => { if (data) setRoom(data); });
   }, [roomId]);
 
-  // Auto-start media on mount
-  useEffect(() => {
-    startMedia(false, false);
-  }, []);
-
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
@@ -46,12 +41,19 @@ export default function StudyRoom() {
         </Button>
       </div>
 
+      <div className="border-b border-border bg-card p-3 lg:hidden">
+        <div className="space-y-3">
+          <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
+          {showTimer && <PomodoroTimer initialMinutes={timerMinutes} roomId={roomId} />}
+        </div>
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         <div className="hidden w-64 flex-col gap-2 border-r border-border bg-card p-3 lg:flex">
           <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
           {showTimer && (
             <div className="mt-auto">
-              <PomodoroTimer initialMinutes={room?.timer_duration ? Math.floor(room.timer_duration / 60) : 25} roomId={roomId} />
+              <PomodoroTimer initialMinutes={timerMinutes} roomId={roomId} />
             </div>
           )}
         </div>
