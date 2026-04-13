@@ -10,6 +10,7 @@ import { Notepad } from "@/components/room/Notepad";
 import { PomodoroTimer } from "@/components/timer/PomodoroTimer";
 import { VideoGrid } from "@/components/room/VideoGrid";
 import { MediaControls } from "@/components/room/MediaControls";
+import { SharedTopicEditor } from "@/components/room/SharedTopicEditor";
 import { useWebRTC } from "@/hooks/useWebRTC";
 
 export default function StudyRoom() {
