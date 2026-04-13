@@ -135,7 +135,10 @@ export type Database = {
           challenge_id: string
           completed_at: string
           id: string
+          question_index: number
           score: number
+          submitted_at: string
+          time_taken_seconds: number
           total_questions: number
           user_id: string
         }
@@ -143,7 +146,10 @@ export type Database = {
           challenge_id: string
           completed_at?: string
           id?: string
+          question_index?: number
           score?: number
+          submitted_at?: string
+          time_taken_seconds?: number
           total_questions?: number
           user_id: string
         }
@@ -151,7 +157,10 @@ export type Database = {
           challenge_id?: string
           completed_at?: string
           id?: string
+          question_index?: number
           score?: number
+          submitted_at?: string
+          time_taken_seconds?: number
           total_questions?: number
           user_id?: string
         }

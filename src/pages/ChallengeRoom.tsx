@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,10 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Trophy, Check, X, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
-import { PomodoroTimer } from "@/components/timer/PomodoroTimer";
+import { ChallengeTimer } from "@/components/timer/ChallengeTimer";
 import { VideoGrid } from "@/components/room/VideoGrid";
 import { MediaControls } from "@/components/room/MediaControls";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { ChallengeLeaderboard } from "@/components/challenge/ChallengeLeaderboard";
+import { AnswerReview } from "@/components/challenge/AnswerReview";
+import { ChallengeResults } from "@/components/challenge/ChallengeResults";
 
 interface Question {
   id: string;
@@ -22,19 +25,13 @@ interface Question {
   question_type: string;
 }
 
-interface ScoreEntry {
-  user_id: string;
-  score: number;
-  total_questions: number;
-  email?: string;
-}
-
 interface AnswerRecord {
   questionIndex: number;
   userAnswer: string;
   correctAnswer: string;
   isCorrect: boolean;
   questionText: string;
+  timeTaken: number;
 }
 
 export default function ChallengeRoom() {
@@ -49,11 +46,9 @@ export default function ChallengeRoom() {
   const [finished, setFinished] = useState(false);
   const [loading, setLoading] = useState(true);
   const [answers, setAnswers] = useState<AnswerRecord[]>([]);
-  const [leaderboard, setLeaderboard] = useState<ScoreEntry[]>([]);
-  const [showReview, setShowReview] = useState(false);
-  const [expandedReview, setExpandedReview] = useState<number | null>(null);
-  const [userRank, setUserRank] = useState(0);
-  const [timerMinutes, setTimerMinutes] = useState(25);
+  const [timePerQuestion, setTimePerQuestion] = useState(60);
+  const [challengeDbId, setChallengeDbId] = useState<string | null>(null);
+  const questionStartTime = useRef<number>(Date.now());
 
   const { localStream, participants, micOn, camOn, speakerOn, toggleMic, toggleCam, toggleSpeaker } = useWebRTC(challengeId ? `challenge-${challengeId}` : "");
 
@@ -63,7 +58,7 @@ export default function ChallengeRoom() {
     const loadQuestions = async () => {
       const { data: challenge } = await supabase
         .from("challenges")
-        .select("id, timer_seconds")
+        .select("id, timer_seconds, question_count")
         .eq("challenge_id", challengeId)
         .maybeSingle();
 
@@ -73,7 +68,10 @@ export default function ChallengeRoom() {
         return;
       }
 
-      setTimerMinutes(Math.max(1, Math.ceil((challenge.timer_seconds ?? 1500) / 60)));
+      setChallengeDbId(challenge.id);
+      // timer_seconds is total time; divide by question count for per-question time
+      const perQ = Math.max(10, Math.floor((challenge.timer_seconds ?? 300) / (challenge.question_count || 5)));
+      setTimePerQuestion(perQ);
 
       const { data: qs } = await supabase
         .from("quiz_questions")
@@ -85,6 +83,7 @@ export default function ChallengeRoom() {
           ...q,
           options: Array.isArray(q.options) ? (q.options as string[]) : null,
         })));
+        questionStartTime.current = Date.now();
       } else {
         toast.error("No questions found for this challenge");
       }
@@ -93,92 +92,54 @@ export default function ChallengeRoom() {
     loadQuestions();
   }, [challengeId]);
 
-  useEffect(() => {
-    if (!finished || !challengeId) return;
+  const handleTimeUp = useCallback(() => {
+    if (!finished && questions.length > 0) {
+      submitAnswer(true);
+    }
+  }, [finished, questions.length, currentQ, answer]);
 
-    const loadLeaderboard = async () => {
-      const { data: challenge } = await supabase
-        .from("challenges")
-        .select("id")
-        .eq("challenge_id", challengeId)
-        .maybeSingle();
-
-      if (!challenge) return;
-
-      const { data: scores } = await supabase
-        .from("quiz_scores")
-        .select("*")
-        .eq("challenge_id", challenge.id)
-        .order("score", { ascending: false });
-
-      if (scores) {
-        const enriched: ScoreEntry[] = scores.map((s) => ({
-          user_id: s.user_id,
-          score: s.score,
-          total_questions: s.total_questions,
-        }));
-
-        const userIds = enriched.map((entry) => entry.user_id);
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, name, username")
-          .in("user_id", userIds);
-
-        const profileMap = new Map(profiles?.map((profile) => [profile.user_id, profile.name || profile.username || profile.user_id.slice(0, 8)]));
-
-        setLeaderboard(enriched.map((entry) => ({
-          ...entry,
-          email: profileMap.get(entry.user_id) || entry.user_id.slice(0, 8),
-        })));
-
-        const rank = enriched.findIndex((entry) => entry.user_id === user?.id);
-        setUserRank(rank >= 0 ? rank + 1 : 0);
-      }
-    };
-    loadLeaderboard();
-  }, [finished, challengeId, user?.id]);
-
-  const submitAnswer = async () => {
+  const submitAnswer = async (timedOut = false) => {
     const question = questions[currentQ];
-    const isCorrect = answer.trim().toLowerCase() === question.correct_answer.trim().toLowerCase();
+    const timeTaken = (Date.now() - questionStartTime.current) / 1000;
+    const userAnswer = timedOut ? "" : answer;
+    const isCorrect = userAnswer.trim().toLowerCase() === question.correct_answer.trim().toLowerCase();
 
     if (isCorrect) {
-      setScore((value) => value + 1);
+      setScore((v) => v + 1);
       toast.success("Correct! ✅");
+    } else if (timedOut) {
+      toast.error(`Time's up! Correct: ${question.correct_answer}`);
     } else {
       toast.error(`Wrong! Correct: ${question.correct_answer}`);
     }
 
     setAnswers((prev) => [...prev, {
       questionIndex: currentQ,
-      userAnswer: answer,
+      userAnswer,
       correctAnswer: question.correct_answer,
       isCorrect,
       questionText: question.question_text,
+      timeTaken: Math.round(timeTaken),
     }]);
 
     if (currentQ + 1 < questions.length) {
-      setCurrentQ((value) => value + 1);
+      setCurrentQ((v) => v + 1);
       setAnswer("");
+      questionStartTime.current = Date.now();
     } else {
       const finalScore = score + (isCorrect ? 1 : 0);
       setFinished(true);
 
-      if (user && challengeId) {
-        const { data: challenge } = await supabase
-          .from("challenges")
-          .select("id")
-          .eq("challenge_id", challengeId)
-          .maybeSingle();
-
-        if (challenge) {
-          await supabase.from("quiz_scores").insert({
-            challenge_id: challenge.id,
-            user_id: user.id,
-            score: finalScore,
-            total_questions: questions.length,
-          });
-        }
+      // Save score with time info
+      if (user && challengeDbId) {
+        const totalTime = answers.reduce((sum, a) => sum + a.timeTaken, 0) + Math.round(timeTaken);
+        await supabase.from("quiz_scores").insert({
+          challenge_id: challengeDbId,
+          user_id: user.id,
+          score: finalScore,
+          total_questions: questions.length,
+          time_taken_seconds: totalTime,
+        });
       }
     }
   };
@@ -197,7 +158,6 @@ export default function ChallengeRoom() {
         <Card className="w-full max-w-md border-border/50 text-center">
           <CardContent className="p-8 space-y-4">
             <p className="text-lg font-medium">No questions found for this challenge.</p>
-            <p className="text-sm text-muted-foreground">The challenge creator hasn't added questions yet.</p>
             <Button onClick={() => navigate("/dashboard")} className="luvis-gradient text-white">Back to Dashboard</Button>
           </CardContent>
         </Card>
@@ -206,115 +166,19 @@ export default function ChallengeRoom() {
   }
 
   if (finished) {
-    const finalScore = score;
-    const percentage = Math.round((finalScore / questions.length) * 100);
-
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <Card className="border-border/50 text-center mb-6">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full luvis-gradient">
-              <Trophy className="h-8 w-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl">Challenge Complete!</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-5xl font-bold luvis-gradient-text">{finalScore}/{questions.length}</p>
-            <p className="text-lg text-muted-foreground">Accuracy: {percentage}%</p>
-            {userRank > 0 && (
-              <p className="text-lg font-semibold">
-                Your Rank: <span className="text-primary">#{userRank}</span>
-              </p>
-            )}
-            <p className="text-muted-foreground">
-              {percentage === 100 ? "Perfect score! 🎉" : percentage >= 70 ? "Great job! 👏" : percentage >= 40 ? "Good effort! 💪" : "Keep practicing! 📚"}
-            </p>
-            <div className="flex justify-center gap-3">
-              <Button variant="outline" onClick={() => setShowReview(!showReview)}>
-                {showReview ? "Hide Review" : "Review Answers"}
-              </Button>
-              <Button onClick={() => navigate("/dashboard")} className="luvis-gradient text-white">
-                Back to Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {leaderboard.length > 0 && (
-          <Card className="border-border/50 mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg">🏆 Leaderboard</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {leaderboard.map((entry, index) => (
-                  <div
-                    key={entry.user_id}
-                    className={`flex items-center justify-between rounded-lg p-3 ${
-                      entry.user_id === user?.id ? "bg-primary/10 border border-primary/30" : "bg-muted/30"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                        index === 0 ? "bg-yellow-500/20 text-yellow-500" : index === 1 ? "bg-gray-400/20 text-gray-400" : index === 2 ? "bg-orange-500/20 text-orange-500" : "bg-muted text-muted-foreground"
-                      }`}>
-                        #{index + 1}
-                      </span>
-                      <span className="font-medium">{entry.email}{entry.user_id === user?.id ? " (You)" : ""}</span>
-                    </div>
-                    <span className="font-bold text-primary">{entry.score}/{entry.total_questions}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {showReview && (
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="text-lg">📝 Answer Review</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {answers.map((answerRecord, index) => (
-                <div key={index} className="rounded-lg border border-border overflow-hidden">
-                  <button
-                    className={`flex w-full items-center gap-3 p-3 text-left ${answerRecord.isCorrect ? "bg-green-500/5" : "bg-red-500/5"}`}
-                    onClick={() => setExpandedReview(expandedReview === index ? null : index)}
-                  >
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${answerRecord.isCorrect ? "bg-green-500/20" : "bg-red-500/20"}`}>
-                      {answerRecord.isCorrect ? <Check className="h-4 w-4 text-green-500" /> : <X className="h-4 w-4 text-red-500" />}
-                    </span>
-                    <span className="flex-1 text-sm font-medium">Q{index + 1}: {answerRecord.questionText}</span>
-                    {expandedReview === index ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-                  {expandedReview === index && (
-                    <div className="border-t border-border p-3 space-y-2 text-sm">
-                      <p>
-                        <span className="text-muted-foreground">Your answer: </span>
-                        <span className={answerRecord.isCorrect ? "text-green-500 font-medium" : "text-red-500 font-medium line-through"}>
-                          {answerRecord.userAnswer || "(no answer)"}
-                        </span>
-                      </p>
-                      {!answerRecord.isCorrect && (
-                        <p>
-                          <span className="text-muted-foreground">Correct answer: </span>
-                          <span className="text-green-500 font-medium">{answerRecord.correctAnswer}</span>
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      <ChallengeResults
+        score={score}
+        questions={questions}
+        answers={answers}
+        challengeDbId={challengeDbId}
+        userId={user?.id}
+        onBack={() => navigate("/dashboard")}
+      />
     );
   }
 
   const question = questions[currentQ];
-  const timerChannelId = challengeId ? `challenge-${challengeId}` : undefined;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -323,10 +187,11 @@ export default function ChallengeRoom() {
         <p className="text-sm text-muted-foreground">Question {currentQ + 1}/{questions.length}</p>
       </div>
 
+      {/* Mobile sidebar */}
       <div className="border-b border-border bg-card p-3 lg:hidden">
         <div className="space-y-3">
           <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
-          <PomodoroTimer initialMinutes={timerMinutes} roomId={timerChannelId} />
+          <ChallengeTimer timeLimit={timePerQuestion} questionIndex={currentQ} roomId={challengeId} onTimeUp={handleTimeUp} />
           <div className="rounded-lg border border-border bg-muted/50 p-3 text-center">
             <p className="text-xs text-muted-foreground">Your Score</p>
             <p className="text-2xl font-bold text-primary">{score}/{questions.length}</p>
@@ -335,15 +200,17 @@ export default function ChallengeRoom() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* Desktop sidebar */}
         <div className="hidden w-64 flex-col gap-2 border-r border-border bg-card p-3 lg:flex">
           <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
-          <PomodoroTimer initialMinutes={timerMinutes} roomId={timerChannelId} />
+          <ChallengeTimer timeLimit={timePerQuestion} questionIndex={currentQ} roomId={challengeId} onTimeUp={handleTimeUp} />
           <div className="mt-auto rounded-lg border border-border bg-muted/50 p-3 text-center">
             <p className="text-xs text-muted-foreground">Your Score</p>
             <p className="text-2xl font-bold text-primary">{score}/{questions.length}</p>
           </div>
         </div>
 
+        {/* Question area */}
         <div className="flex flex-1 flex-col items-center justify-center p-6">
           <Card className="w-full max-w-xl border-border/50">
             <CardHeader>
@@ -363,12 +230,12 @@ export default function ChallengeRoom() {
               ) : (
                 <Input
                   value={answer}
-                  onChange={(event) => setAnswer(event.target.value)}
+                  onChange={(e) => setAnswer(e.target.value)}
                   placeholder="Type your answer..."
                   className="text-lg"
                 />
               )}
-              <Button onClick={submitAnswer} disabled={!answer.trim()} className="w-full luvis-gradient text-white">
+              <Button onClick={() => submitAnswer(false)} disabled={!answer.trim()} className="w-full luvis-gradient text-white">
                 {currentQ + 1 < questions.length ? "Submit & Next" : "Submit & Finish"}
               </Button>
             </CardContent>

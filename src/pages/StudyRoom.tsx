@@ -10,6 +10,7 @@ import { Notepad } from "@/components/room/Notepad";
 import { PomodoroTimer } from "@/components/timer/PomodoroTimer";
 import { VideoGrid } from "@/components/room/VideoGrid";
 import { MediaControls } from "@/components/room/MediaControls";
+import { SharedTopicEditor } from "@/components/room/SharedTopicEditor";
 import { useWebRTC } from "@/hooks/useWebRTC";
 
 export default function StudyRoom() {
@@ -39,6 +40,9 @@ export default function StudyRoom() {
         <Button variant="ghost" size="sm" onClick={() => setShowTimer(!showTimer)}>
           <Clock className="mr-1 h-4 w-4" /> Timer
         </Button>
+      </div>
+      <div className="border-b border-border bg-card px-4 py-2">
+        <SharedTopicEditor roomId={roomId || ""} />
       </div>
 
       <div className="border-b border-border bg-card p-3 lg:hidden">

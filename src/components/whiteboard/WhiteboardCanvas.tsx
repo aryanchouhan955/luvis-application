@@ -1,6 +1,6 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
-import { Pen, Eraser, Trash2, Circle } from "lucide-react";
+import { Pen, Eraser, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
@@ -9,15 +9,25 @@ interface Props {
 
 const COLORS = ["#6C5CE7", "#00B894", "#E17055", "#0984E3", "#FDCB6E", "#E84393"];
 
-export function WhiteboardCanvas({ roomId }: Props) {
+export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawing = useRef(false);
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [color, setColor] = useState("#6C5CE7");
   const [lineWidth, setLineWidth] = useState(3);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const pendingBroadcast = useRef<any[]>([]);
+  const rafId = useRef<number | null>(null);
+  const toolRef = useRef(tool);
+  const colorRef = useRef(color);
+  const lineWidthRef = useRef(lineWidth);
+
+  // Keep refs in sync
+  useEffect(() => { toolRef.current = tool; }, [tool]);
+  useEffect(() => { colorRef.current = color; }, [color]);
+  useEffect(() => { lineWidthRef.current = lineWidth; }, [lineWidth]);
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -37,24 +47,58 @@ export function WhiteboardCanvas({ roomId }: Props) {
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
 
+  const drawSegment = useCallback((ctx: CanvasRenderingContext2D, from: {x:number,y:number}, to: {x:number,y:number}, strokeColor: string, strokeWidth: number, toolType: string) => {
+    ctx.save();
+    if (toolType === "eraser") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.lineWidth = strokeWidth;
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+    }
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.restore();
+  }, []);
+
+  // Flush batched broadcasts using rAF
+  const flushBroadcasts = useCallback(() => {
+    if (pendingBroadcast.current.length > 0 && channelRef.current) {
+      // Send batch
+      channelRef.current.send({
+        type: "broadcast",
+        event: "draw-batch",
+        payload: { strokes: pendingBroadcast.current },
+      });
+      pendingBroadcast.current = [];
+    }
+    rafId.current = null;
+  }, []);
+
   // Realtime sync
   useEffect(() => {
     const channel = supabase.channel(`whiteboard-${roomId}`);
     channelRef.current = channel;
 
     channel
-      .on("broadcast", { event: "draw" }, (payload) => {
-        const { from, to, strokeColor, strokeWidth, toolType } = payload.payload;
+      .on("broadcast", { event: "draw-batch" }, (payload) => {
         const ctx = canvasRef.current?.getContext("2d");
         if (!ctx) return;
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.strokeStyle = toolType === "eraser" ? "hsl(var(--background))" : strokeColor;
-        ctx.lineWidth = toolType === "eraser" ? 20 : strokeWidth;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.stroke();
+        const strokes = payload.payload.strokes;
+        for (const s of strokes) {
+          drawSegment(ctx, s.from, s.to, s.strokeColor, s.strokeWidth, s.toolType);
+        }
+      })
+      .on("broadcast", { event: "draw" }, (payload) => {
+        const ctx = canvasRef.current?.getContext("2d");
+        if (!ctx) return;
+        const { from, to, strokeColor, strokeWidth, toolType } = payload.payload;
+        drawSegment(ctx, from, to, strokeColor, strokeWidth, toolType);
       })
       .on("broadcast", { event: "clear" }, () => {
         const canvas = canvasRef.current;
@@ -64,58 +108,65 @@ export function WhiteboardCanvas({ roomId }: Props) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [roomId]);
+  }, [roomId, drawSegment]);
 
-  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
+  const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     if ("touches" in e) {
       return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
     }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+  }, []);
 
-  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsDrawing(true);
+  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    isDrawing.current = true;
     lastPos.current = getPos(e);
-  };
+  }, [getPos]);
 
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !lastPos.current) return;
+  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing.current || !lastPos.current) return;
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const pos = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = tool === "eraser" ? "hsl(var(--background))" : color;
-    ctx.lineWidth = tool === "eraser" ? 20 : lineWidth;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.stroke();
+    const currentTool = toolRef.current;
+    const currentColor = colorRef.current;
+    const currentWidth = currentTool === "eraser" ? 20 : lineWidthRef.current;
 
-    // Broadcast stroke
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "draw",
-      payload: { from: lastPos.current, to: pos, strokeColor: color, strokeWidth: lineWidth, toolType: tool },
+    drawSegment(ctx, lastPos.current, pos, currentColor, currentWidth, currentTool);
+
+    // Batch broadcast
+    pendingBroadcast.current.push({
+      from: lastPos.current,
+      to: pos,
+      strokeColor: currentColor,
+      strokeWidth: currentWidth,
+      toolType: currentTool,
     });
 
+    if (!rafId.current) {
+      rafId.current = requestAnimationFrame(flushBroadcasts);
+    }
+
     lastPos.current = pos;
-  };
+  }, [getPos, drawSegment, flushBroadcasts]);
 
-  const stopDraw = () => {
-    setIsDrawing(false);
+  const stopDraw = useCallback(() => {
+    isDrawing.current = false;
     lastPos.current = null;
-  };
+    // Flush remaining
+    if (pendingBroadcast.current.length > 0) {
+      flushBroadcasts();
+    }
+  }, [flushBroadcasts]);
 
-  const clearBoard = () => {
+  const clearBoard = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     channelRef.current?.send({ type: "broadcast", event: "clear", payload: {} });
-  };
+  }, []);
 
   return (
     <div ref={containerRef} className="relative h-full w-full">
@@ -164,4 +215,4 @@ export function WhiteboardCanvas({ roomId }: Props) {
       />
     </div>
   );
-}
+});
