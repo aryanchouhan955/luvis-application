@@ -12,12 +12,16 @@ import { VideoGrid } from "@/components/room/VideoGrid";
 import { MediaControls } from "@/components/room/MediaControls";
 import { SharedTopicEditor } from "@/components/room/SharedTopicEditor";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useStudyTracker } from "@/hooks/useStudyTracker";
 
 export default function StudyRoom() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const [room, setRoom] = useState<any>(null);
   const [showTimer, setShowTimer] = useState(true);
+
+  // Auto-track active study time while user is in the room
+  useStudyTracker(!!roomId);
 
   const { localStream, participants, micOn, camOn, speakerOn, toggleMic, toggleCam, toggleSpeaker } = useWebRTC(roomId || "");
 
