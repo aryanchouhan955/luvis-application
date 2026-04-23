@@ -58,6 +58,8 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           id: string
+          last_study_date: string | null
+          max_streak: number
           name: string
           quiz_score: number
           study_hours: number
@@ -70,6 +72,8 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
+          last_study_date?: string | null
+          max_streak?: number
           name?: string
           quiz_score?: number
           study_hours?: number
@@ -82,6 +86,8 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
+          last_study_date?: string | null
+          max_streak?: number
           name?: string
           quiz_score?: number
           study_hours?: number
@@ -274,7 +280,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      record_study_minutes: { Args: { _minutes: number }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
