@@ -62,7 +62,7 @@ export function useStudyTracker(enabled: boolean = true) {
       const totalMinutes = accumulatedMs.current / 60000 + pendingFractionRef.current;
       const whole = Math.floor(totalMinutes);
       if (whole > 0) {
-        supabase.rpc("record_study_minutes", { _minutes: whole }).catch(() => {});
+        void supabase.rpc("record_study_minutes", { _minutes: whole }).then(() => {});
       }
     };
   }, [enabled]);
