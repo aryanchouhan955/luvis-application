@@ -280,7 +280,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      join_room: {
+        Args: { _password: string; _room_id: string }
+        Returns: Json
+      }
       record_study_minutes: { Args: { _minutes: number }; Returns: undefined }
+      verify_challenge_password: {
+        Args: { _challenge_id: string; _password: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
