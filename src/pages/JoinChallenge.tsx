@@ -17,26 +17,22 @@ export default function JoinChallenge() {
     e.preventDefault();
     setLoading(true);
 
-    const { data: challenge, error } = await supabase
-      .from("challenges")
-      .select("*")
-      .eq("challenge_id", challengeId.trim())
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (error || !challenge) {
-      setLoading(false);
-      toast.error("Challenge not found or inactive.");
-      return;
-    }
-
-    if (challenge.password_hash !== password) {
-      setLoading(false);
-      toast.error("Incorrect password.");
-      return;
-    }
+    const { data, error } = await supabase.rpc("verify_challenge_password", {
+      _challenge_id: challengeId.trim(),
+      _password: password,
+    });
 
     setLoading(false);
+
+    const result = data as { success: boolean; error?: string } | null;
+    if (error || !result?.success) {
+      const code = result?.error;
+      if (code === "not_found") toast.error("Challenge not found or inactive.");
+      else if (code === "invalid_password") toast.error("Incorrect password.");
+      else toast.error("Could not join challenge.");
+      return;
+    }
+
     toast.success("Joined challenge!");
     navigate(`/challenge/${challengeId.trim()}`);
   };

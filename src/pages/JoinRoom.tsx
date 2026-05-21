@@ -20,32 +20,22 @@ export default function JoinRoom() {
     if (!user) return;
     setLoading(true);
 
-    const { data: room, error } = await supabase
-      .from("rooms")
-      .select("*")
-      .eq("room_id", roomId.trim())
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (error || !room) {
-      setLoading(false);
-      toast.error("Room not found or inactive.");
-      return;
-    }
-
-    if (room.password_hash !== password) {
-      setLoading(false);
-      toast.error("Incorrect password.");
-      return;
-    }
-
-    // Add participant
-    await supabase.from("room_participants").upsert({
-      room_id: room.id,
-      user_id: user.id,
+    const { data, error } = await supabase.rpc("join_room", {
+      _room_id: roomId.trim(),
+      _password: password,
     });
 
     setLoading(false);
+
+    const result = data as { success: boolean; error?: string } | null;
+    if (error || !result?.success) {
+      const code = result?.error;
+      if (code === "not_found") toast.error("Room not found or inactive.");
+      else if (code === "invalid_password") toast.error("Incorrect password.");
+      else toast.error("Could not join room.");
+      return;
+    }
+
     toast.success("Joined room!");
     navigate(`/room/${roomId.trim()}`);
   };
