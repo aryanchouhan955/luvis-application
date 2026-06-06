@@ -273,14 +273,15 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={quizData}>
+              <BarChart data={quizData} margin={{ bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="quiz" className="text-xs" />
+                <XAxis dataKey="quiz" className="text-xs" interval={0} angle={-30} textAnchor="end" height={50} />
                 <YAxis className="text-xs" domain={[0, 100]} />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} formatter={(v: number) => [`${v}%`, "Accuracy"]} labelFormatter={(l) => `Challenge: ${l}`} />
                 <Bar dataKey="accuracy" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+
           </CardContent>
         </Card>
       </div>
