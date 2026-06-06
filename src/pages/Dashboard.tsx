@@ -122,14 +122,24 @@ export default function Dashboard() {
     return out;
   }, [stats, range]);
 
-  // ---------- Quiz accuracy graph ----------
+  // ---------- Quiz accuracy graph (per challenge, aggregated) ----------
   const quizData = useMemo(() => {
     if (quizScores.length === 0) return [{ quiz: "—", accuracy: 0 }];
-    return quizScores.map((q, i) => ({
-      quiz: `Q${i + 1}`,
-      accuracy: q.total_questions > 0 ? Math.round((q.score / q.total_questions) * 100) : 0,
+    const byChallenge = new Map<string, { score: number; total: number }>();
+    quizScores.forEach((q, i) => {
+      const cid = q.challenges?.challenge_id ?? `Q${i + 1}`;
+      const prev = byChallenge.get(cid) ?? { score: 0, total: 0 };
+      byChallenge.set(cid, {
+        score: prev.score + (q.score ?? 0),
+        total: prev.total + (q.total_questions ?? 0),
+      });
+    });
+    return Array.from(byChallenge.entries()).map(([quiz, v]) => ({
+      quiz,
+      accuracy: v.total > 0 ? Math.round((v.score / v.total) * 100) : 0,
     }));
   }, [quizScores]);
+
 
   const avgAccuracy = useMemo(() => {
     if (quizScores.length === 0) return 0;
