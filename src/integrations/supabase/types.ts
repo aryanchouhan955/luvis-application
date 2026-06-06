@@ -215,7 +215,7 @@ export type Database = {
           created_by: string
           id: string
           is_active: boolean
-          password_hash: string
+          password_hash: string | null
           room_id: string
           timer_duration: number
           updated_at: string
@@ -225,7 +225,7 @@ export type Database = {
           created_by: string
           id?: string
           is_active?: boolean
-          password_hash: string
+          password_hash?: string | null
           room_id: string
           timer_duration?: number
           updated_at?: string
@@ -235,7 +235,7 @@ export type Database = {
           created_by?: string
           id?: string
           is_active?: boolean
-          password_hash?: string
+          password_hash?: string | null
           room_id?: string
           timer_duration?: number
           updated_at?: string
