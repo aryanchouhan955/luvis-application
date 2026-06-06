@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [roomCount, setRoomCount] = useState(0);
   const [rank, setRank] = useState<{ position: number; total: number } | null>(null);
   const [range, setRange] = useState<"7" | "30">("7");
-  const [quizScores, setQuizScores] = useState<{ score: number; total_questions: number; submitted_at: string }[]>([]);
+  const [quizScores, setQuizScores] = useState<{ score: number; total_questions: number; submitted_at: string; challenges: { challenge_id: string } | null }[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -65,40 +65,27 @@ export default function Dashboard() {
       .eq("user_id", user.id)
       .then(({ count }) => setRoomCount(count ?? 0));
 
-    // Quiz scores history (last 20 attempts)
+    // Quiz scores history (last 20 attempts) with challenge text id
     supabase
       .from("quiz_scores")
-      .select("score, total_questions, submitted_at")
+      .select("score, total_questions, submitted_at, challenges(challenge_id)")
       .eq("user_id", user.id)
       .order("submitted_at", { ascending: true })
       .limit(20)
-      .then(({ data }) => { if (data) setQuizScores(data); });
+      .then(({ data }) => { if (data) setQuizScores(data as any); });
 
-    // Ranking — active in last 30d, sort by hours then accuracy
+    // Ranking — users who signed in within the last 30 days
     (async () => {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      const cutoffStr = cutoff.toISOString();
-      const { data: activeUsers } = await supabase
-        .from("user_stats")
-        .select("user_id")
-        .gte("updated_at", cutoffStr);
-      const activeIds = Array.from(new Set((activeUsers ?? []).map((r: any) => r.user_id)));
-      if (activeIds.length === 0) { setRank({ position: 1, total: 1 }); return; }
-      const { data: leaderboard } = await supabase
-        .from("profiles")
-        .select("user_id, study_hours, quiz_score")
-        .in("user_id", activeIds);
-      const sorted = (leaderboard ?? []).slice().sort((a: any, b: any) => {
-        if (b.study_hours !== a.study_hours) return Number(b.study_hours) - Number(a.study_hours);
-        return Number(b.quiz_score) - Number(a.quiz_score);
-      });
-      const idx = sorted.findIndex((r: any) => r.user_id === user.id);
+      const { data: ranking } = await supabase.rpc("get_active_user_ranking");
+      const list = (ranking ?? []) as { user_id: string }[];
+      if (list.length === 0) { setRank({ position: 1, total: 1 }); return; }
+      const idx = list.findIndex((r) => r.user_id === user.id);
       setRank({
-        position: idx >= 0 ? idx + 1 : sorted.length + 1,
-        total: Math.max(sorted.length, 1),
+        position: idx >= 0 ? idx + 1 : list.length + 1,
+        total: Math.max(list.length, 1),
       });
     })();
+
   }, [user]);
 
   // Determine if first-time user — created within the last 5 minutes & no stats yet
@@ -135,14 +122,24 @@ export default function Dashboard() {
     return out;
   }, [stats, range]);
 
-  // ---------- Quiz accuracy graph ----------
+  // ---------- Quiz accuracy graph (per challenge, aggregated) ----------
   const quizData = useMemo(() => {
     if (quizScores.length === 0) return [{ quiz: "—", accuracy: 0 }];
-    return quizScores.map((q, i) => ({
-      quiz: `Q${i + 1}`,
-      accuracy: q.total_questions > 0 ? Math.round((q.score / q.total_questions) * 100) : 0,
+    const byChallenge = new Map<string, { score: number; total: number }>();
+    quizScores.forEach((q, i) => {
+      const cid = q.challenges?.challenge_id ?? `Q${i + 1}`;
+      const prev = byChallenge.get(cid) ?? { score: 0, total: 0 };
+      byChallenge.set(cid, {
+        score: prev.score + (q.score ?? 0),
+        total: prev.total + (q.total_questions ?? 0),
+      });
+    });
+    return Array.from(byChallenge.entries()).map(([quiz, v]) => ({
+      quiz,
+      accuracy: v.total > 0 ? Math.round((v.score / v.total) * 100) : 0,
     }));
   }, [quizScores]);
+
 
   const avgAccuracy = useMemo(() => {
     if (quizScores.length === 0) return 0;
@@ -276,14 +273,15 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={quizData}>
+              <BarChart data={quizData} margin={{ bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="quiz" className="text-xs" />
+                <XAxis dataKey="quiz" className="text-xs" interval={0} angle={-30} textAnchor="end" height={50} />
                 <YAxis className="text-xs" domain={[0, 100]} />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} formatter={(v: number) => [`${v}%`, "Accuracy"]} labelFormatter={(l) => `Challenge: ${l}`} />
                 <Bar dataKey="accuracy" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+
           </CardContent>
         </Card>
       </div>
@@ -316,13 +314,23 @@ export default function Dashboard() {
               <div className="flex gap-[3px]">
                 {heatmap.map((week, ci) => (
                   <div key={ci} className="flex flex-col gap-[3px]">
-                    {week.map((cell) => (
-                      <div
-                        key={cell.date}
-                        title={`${cell.date}: ${cell.minutes} min`}
-                        className={`h-[11px] w-[11px] rounded-sm ${levelClass[cell.level]}`}
-                      />
-                    ))}
+                    {week.map((cell) => {
+                      const dateLabel = new Date(cell.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+                      const hours = cell.minutes / 60;
+                      const hoursLabel = cell.minutes === 0
+                        ? "No study"
+                        : hours >= 1
+                          ? `${hours.toFixed(2)} hrs studied`
+                          : `${cell.minutes} min studied`;
+                      return (
+                        <div
+                          key={cell.date}
+                          title={`${dateLabel} — ${hoursLabel}`}
+                          className={`h-[11px] w-[11px] rounded-sm ${levelClass[cell.level]}`}
+                        />
+                      );
+                    })}
+
                   </div>
                 ))}
               </div>
