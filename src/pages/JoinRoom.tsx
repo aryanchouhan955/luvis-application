@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,18 +11,19 @@ import { toast } from "sonner";
 export default function JoinRoom() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [roomId, setRoomId] = useState("");
-  const [password, setPassword] = useState("");
+  const [searchParams] = useSearchParams();
+  const [roomId, setRoomId] = useState(searchParams.get("roomId") ?? "");
+  const [password, setPassword] = useState(searchParams.get("password") ?? "");
   const [loading, setLoading] = useState(false);
+  const autoJoinRef = useState({ tried: false })[0];
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (rid: string, pwd: string) => {
     if (!user) return;
     setLoading(true);
 
     const { data, error } = await supabase.rpc("join_room", {
-      _room_id: roomId.trim(),
-      _password: password,
+      _room_id: rid.trim(),
+      _password: pwd,
     });
 
     setLoading(false);
@@ -37,7 +38,21 @@ export default function JoinRoom() {
     }
 
     toast.success("Joined room!");
-    navigate(`/room/${roomId.trim()}`);
+    navigate(`/room/${rid.trim()}`);
+  };
+
+  // Auto-join when link contains roomId (and optional password)
+  useEffect(() => {
+    const qRoom = searchParams.get("roomId");
+    if (!qRoom || !user || autoJoinRef.tried) return;
+    autoJoinRef.tried = true;
+    submit(qRoom, searchParams.get("password") ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submit(roomId, password);
   };
 
   return (
@@ -54,8 +69,8 @@ export default function JoinRoom() {
               <Input id="roomId" required value={roomId} onChange={(e) => setRoomId(e.target.value)} placeholder="ROOM-XXXXXX" className="font-mono" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Room password" />
+              <Label htmlFor="password">Password <span className="text-xs text-muted-foreground">(leave blank if none)</span></Label>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Room password (optional)" />
             </div>
             <Button type="submit" className="w-full luvis-gradient text-white" disabled={loading}>
               {loading ? "Joining..." : "Join Room"}
