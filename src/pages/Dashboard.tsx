@@ -65,40 +65,27 @@ export default function Dashboard() {
       .eq("user_id", user.id)
       .then(({ count }) => setRoomCount(count ?? 0));
 
-    // Quiz scores history (last 20 attempts)
+    // Quiz scores history (last 20 attempts) with challenge text id
     supabase
       .from("quiz_scores")
-      .select("score, total_questions, submitted_at")
+      .select("score, total_questions, submitted_at, challenges(challenge_id)")
       .eq("user_id", user.id)
       .order("submitted_at", { ascending: true })
       .limit(20)
-      .then(({ data }) => { if (data) setQuizScores(data); });
+      .then(({ data }) => { if (data) setQuizScores(data as any); });
 
-    // Ranking — active in last 30d, sort by hours then accuracy
+    // Ranking — users who signed in within the last 30 days
     (async () => {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      const cutoffStr = cutoff.toISOString();
-      const { data: activeUsers } = await supabase
-        .from("user_stats")
-        .select("user_id")
-        .gte("updated_at", cutoffStr);
-      const activeIds = Array.from(new Set((activeUsers ?? []).map((r: any) => r.user_id)));
-      if (activeIds.length === 0) { setRank({ position: 1, total: 1 }); return; }
-      const { data: leaderboard } = await supabase
-        .from("profiles")
-        .select("user_id, study_hours, quiz_score")
-        .in("user_id", activeIds);
-      const sorted = (leaderboard ?? []).slice().sort((a: any, b: any) => {
-        if (b.study_hours !== a.study_hours) return Number(b.study_hours) - Number(a.study_hours);
-        return Number(b.quiz_score) - Number(a.quiz_score);
-      });
-      const idx = sorted.findIndex((r: any) => r.user_id === user.id);
+      const { data: ranking } = await supabase.rpc("get_active_user_ranking");
+      const list = (ranking ?? []) as { user_id: string }[];
+      if (list.length === 0) { setRank({ position: 1, total: 1 }); return; }
+      const idx = list.findIndex((r) => r.user_id === user.id);
       setRank({
-        position: idx >= 0 ? idx + 1 : sorted.length + 1,
-        total: Math.max(sorted.length, 1),
+        position: idx >= 0 ? idx + 1 : list.length + 1,
+        total: Math.max(list.length, 1),
       });
     })();
+
   }, [user]);
 
   // Determine if first-time user — created within the last 5 minutes & no stats yet
