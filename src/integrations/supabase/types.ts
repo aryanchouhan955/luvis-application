@@ -280,11 +280,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_challenge_session: { Args: { _challenge_id: string }; Returns: Json }
       join_room: {
         Args: { _password: string; _room_id: string }
         Returns: Json
       }
       record_study_minutes: { Args: { _minutes: number }; Returns: undefined }
+      submit_quiz_answer: {
+        Args: { _question_id: string; _user_answer: string }
+        Returns: Json
+      }
+      user_participated_in_challenge: {
+        Args: { _challenge_id: string }
+        Returns: boolean
+      }
       verify_challenge_password: {
         Args: { _challenge_id: string; _password: string }
         Returns: Json
