@@ -313,13 +313,23 @@ export default function Dashboard() {
               <div className="flex gap-[3px]">
                 {heatmap.map((week, ci) => (
                   <div key={ci} className="flex flex-col gap-[3px]">
-                    {week.map((cell) => (
-                      <div
-                        key={cell.date}
-                        title={`${cell.date}: ${cell.minutes} min`}
-                        className={`h-[11px] w-[11px] rounded-sm ${levelClass[cell.level]}`}
-                      />
-                    ))}
+                    {week.map((cell) => {
+                      const dateLabel = new Date(cell.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+                      const hours = cell.minutes / 60;
+                      const hoursLabel = cell.minutes === 0
+                        ? "No study"
+                        : hours >= 1
+                          ? `${hours.toFixed(2)} hrs studied`
+                          : `${cell.minutes} min studied`;
+                      return (
+                        <div
+                          key={cell.date}
+                          title={`${dateLabel} — ${hoursLabel}`}
+                          className={`h-[11px] w-[11px] rounded-sm ${levelClass[cell.level]}`}
+                        />
+                      );
+                    })}
+
                   </div>
                 ))}
               </div>
