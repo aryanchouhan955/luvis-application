@@ -21,9 +21,9 @@ interface Question {
   id: string;
   question_text: string;
   options: string[] | null;
-  correct_answer: string;
   question_type: string;
 }
+
 
 interface AnswerRecord {
   questionIndex: number;
