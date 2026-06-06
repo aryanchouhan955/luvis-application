@@ -56,31 +56,36 @@ export default function ChallengeRoom() {
     if (!challengeId) return;
 
     const loadQuestions = async () => {
-      const { data: challenge } = await supabase
-        .from("challenges")
-        .select("id, timer_seconds, question_count")
-        .eq("challenge_id", challengeId)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("get_challenge_session", {
+        _challenge_id: challengeId,
+      });
 
-      if (!challenge) {
+      const result = data as {
+        success: boolean;
+        error?: string;
+        challenge?: { id: string; timer_seconds: number; question_count: number };
+        questions?: Array<{ id: string; question_text: string; question_type: string; options: any }>;
+      } | null;
+
+      if (error || !result?.success || !result.challenge) {
         toast.error("Challenge not found");
         setLoading(false);
         return;
       }
 
-      setChallengeDbId(challenge.id);
-      // timer_seconds is total time; divide by question count for per-question time
-      const perQ = Math.max(10, Math.floor((challenge.timer_seconds ?? 300) / (challenge.question_count || 5)));
+      setChallengeDbId(result.challenge.id);
+      const perQ = Math.max(
+        10,
+        Math.floor((result.challenge.timer_seconds ?? 300) / (result.challenge.question_count || 5))
+      );
       setTimePerQuestion(perQ);
 
-      const { data: qs } = await supabase
-        .from("quiz_questions")
-        .select("*")
-        .eq("challenge_id", challenge.id);
-
-      if (qs && qs.length > 0) {
+      const qs = result.questions ?? [];
+      if (qs.length > 0) {
         setQuestions(qs.map((q) => ({
-          ...q,
+          id: q.id,
+          question_text: q.question_text,
+          question_type: q.question_type,
           options: Array.isArray(q.options) ? (q.options as string[]) : null,
         })));
         questionStartTime.current = Date.now();
@@ -102,21 +107,28 @@ export default function ChallengeRoom() {
     const question = questions[currentQ];
     const timeTaken = (Date.now() - questionStartTime.current) / 1000;
     const userAnswer = timedOut ? "" : answer;
-    const isCorrect = userAnswer.trim().toLowerCase() === question.correct_answer.trim().toLowerCase();
+
+    const { data } = await supabase.rpc("submit_quiz_answer", {
+      _question_id: question.id,
+      _user_answer: userAnswer,
+    });
+    const grade = data as { success: boolean; is_correct?: boolean; correct_answer?: string } | null;
+    const isCorrect = !!grade?.is_correct;
+    const correctAnswer = grade?.correct_answer ?? "";
 
     if (isCorrect) {
       setScore((v) => v + 1);
       toast.success("Correct! ✅");
     } else if (timedOut) {
-      toast.error(`Time's up! Correct: ${question.correct_answer}`);
+      toast.error(`Time's up! Correct: ${correctAnswer}`);
     } else {
-      toast.error(`Wrong! Correct: ${question.correct_answer}`);
+      toast.error(`Wrong! Correct: ${correctAnswer}`);
     }
 
     setAnswers((prev) => [...prev, {
       questionIndex: currentQ,
       userAnswer,
-      correctAnswer: question.correct_answer,
+      correctAnswer,
       isCorrect,
       questionText: question.question_text,
       timeTaken: Math.round(timeTaken),
@@ -130,7 +142,6 @@ export default function ChallengeRoom() {
       const finalScore = score + (isCorrect ? 1 : 0);
       setFinished(true);
 
-      // Save score with time info
       if (user && challengeDbId) {
         const totalTime = answers.reduce((sum, a) => sum + a.timeTaken, 0) + Math.round(timeTaken);
         await supabase.from("quiz_scores").insert({
@@ -143,6 +154,7 @@ export default function ChallengeRoom() {
       }
     }
   };
+
 
   if (loading) {
     return (
