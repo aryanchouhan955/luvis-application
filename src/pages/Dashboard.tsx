@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [roomCount, setRoomCount] = useState(0);
   const [rank, setRank] = useState<{ position: number; total: number } | null>(null);
   const [range, setRange] = useState<"7" | "30">("7");
-  const [quizScores, setQuizScores] = useState<{ score: number; total_questions: number; submitted_at: string }[]>([]);
+  const [quizScores, setQuizScores] = useState<{ score: number; total_questions: number; submitted_at: string; challenges: { challenge_id: string } | null }[]>([]);
 
   useEffect(() => {
     if (!user) return;
