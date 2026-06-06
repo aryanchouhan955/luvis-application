@@ -280,6 +280,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_active_user_ranking: {
+        Args: never
+        Returns: {
+          quiz_score: number
+          study_hours: number
+          user_id: string
+        }[]
+      }
       get_challenge_session: { Args: { _challenge_id: string }; Returns: Json }
       join_room: {
         Args: { _password: string; _room_id: string }
