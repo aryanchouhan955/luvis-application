@@ -186,7 +186,8 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
     if (pendingBroadcast.current.length > 0) {
       flushBroadcasts();
     }
-  }, [flushBroadcasts]);
+    saveSnapshot();
+  }, [flushBroadcasts, saveSnapshot]);
 
   const clearBoard = useCallback(() => {
     const canvas = canvasRef.current;
