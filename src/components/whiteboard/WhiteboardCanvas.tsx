@@ -80,6 +80,24 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
     rafId.current = null;
   }, []);
 
+  const storageKey = `whiteboard-${roomId}`;
+
+  // Restore from localStorage
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      const data = localStorage.getItem(storageKey);
+      if (!data) return;
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0);
+      };
+      img.src = data;
+    } catch {}
+  }, [storageKey]);
+
   // Realtime sync
   useEffect(() => {
     const channel = supabase.channel(`whiteboard-${roomId}`);
@@ -104,11 +122,20 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext("2d");
         if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        try { localStorage.removeItem(storageKey); } catch {}
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [roomId, drawSegment]);
+  }, [roomId, drawSegment, storageKey]);
+
+  const saveSnapshot = useCallback(() => {
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      localStorage.setItem(storageKey, canvas.toDataURL("image/png"));
+    } catch {}
+  }, [storageKey]);
 
   const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
@@ -159,7 +186,8 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
     if (pendingBroadcast.current.length > 0) {
       flushBroadcasts();
     }
-  }, [flushBroadcasts]);
+    saveSnapshot();
+  }, [flushBroadcasts, saveSnapshot]);
 
   const clearBoard = useCallback(() => {
     const canvas = canvasRef.current;
