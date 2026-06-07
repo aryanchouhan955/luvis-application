@@ -29,11 +29,31 @@ interface Props {
 }
 
 export function CodeEditorPanel({ roomId }: Props) {
+  const storageKey = `code-${roomId}`;
+  const langKey = `code-lang-${roomId}`;
   const [language, setLanguage] = useState("javascript");
   const [code, setCode] = useState(defaultCode);
   const { resolvedTheme } = useTheme();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isRemoteUpdate = useRef(false);
+
+  // Restore from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      const savedLang = localStorage.getItem(langKey);
+      if (saved !== null) setCode(saved);
+      if (savedLang) setLanguage(savedLang);
+    } catch {}
+  }, [storageKey, langKey]);
+
+  // Autosave
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { localStorage.setItem(storageKey, code); localStorage.setItem(langKey, language); } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [code, language, storageKey, langKey]);
 
   useEffect(() => {
     const channel = supabase.channel(`code-${roomId}`);
