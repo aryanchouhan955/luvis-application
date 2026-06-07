@@ -14,9 +14,9 @@ interface VideoGridProps {
   localStream: MediaStream | null;
   participants: Participant[];
   speakerOn: boolean;
-  raisedHands: Record<string, boolean>;
+  raisedHands?: Record<string, boolean>;
   localUserId?: string;
-  localRaised: boolean;
+  localRaised?: boolean;
 }
 
 function VideoTile({
