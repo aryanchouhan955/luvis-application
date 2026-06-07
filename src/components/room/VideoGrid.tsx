@@ -101,7 +101,7 @@ function VideoTile({
   );
 }
 
-export function VideoGrid({ localStream, participants, speakerOn, raisedHands, localUserId, localRaised }: VideoGridProps) {
+export function VideoGrid({ localStream, participants, speakerOn, raisedHands = {}, localUserId, localRaised = false }: VideoGridProps) {
   const { user } = useAuth();
 
   return (
