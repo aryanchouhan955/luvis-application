@@ -100,6 +100,23 @@ export function PomodoroTimer({ initialMinutes = 25, roomId, compact = false }: 
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
 
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Focus</span>
+        <span className="font-mono text-sm font-bold tabular-nums">
+          {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+        </span>
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={toggle}>
+          {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        </Button>
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={reset}>
+          <RotateCcw className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card p-4 text-center">
       <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Focus Timer</p>
