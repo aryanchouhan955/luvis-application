@@ -6,9 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 interface Props {
   initialMinutes?: number;
   roomId?: string;
+  compact?: boolean;
 }
 
-export function PomodoroTimer({ initialMinutes = 25, roomId }: Props) {
+export function PomodoroTimer({ initialMinutes = 25, roomId, compact = false }: Props) {
   const [seconds, setSeconds] = useState(initialMinutes * 60);
   const [running, setRunning] = useState(false);
   const intervalRef = useRef<number | null>(null);
