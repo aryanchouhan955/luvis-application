@@ -144,12 +144,11 @@ export default function ChallengeRoom() {
 
       if (user && challengeDbId) {
         const totalTime = answers.reduce((sum, a) => sum + a.timeTaken, 0) + Math.round(timeTaken);
-        await supabase.from("quiz_scores").insert({
-          challenge_id: challengeDbId,
-          user_id: user.id,
-          score: finalScore,
-          total_questions: questions.length,
-          time_taken_seconds: totalTime,
+        await supabase.rpc("record_challenge_score", {
+          _challenge_id: challengeDbId,
+          _score: finalScore,
+          _total_questions: questions.length,
+          _time_taken_seconds: totalTime,
         });
       }
     }

@@ -293,6 +293,15 @@ export type Database = {
         Args: { _password: string; _room_id: string }
         Returns: Json
       }
+      record_challenge_score: {
+        Args: {
+          _challenge_id: string
+          _score: number
+          _time_taken_seconds: number
+          _total_questions: number
+        }
+        Returns: Json
+      }
       record_study_minutes: { Args: { _minutes: number }; Returns: undefined }
       submit_quiz_answer: {
         Args: { _question_id: string; _user_answer: string }
