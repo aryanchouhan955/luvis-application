@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
-import { Pen, Eraser, Trash2 } from "lucide-react";
+import { Pen, Eraser, Trash2, Save } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
