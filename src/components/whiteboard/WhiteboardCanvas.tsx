@@ -248,7 +248,16 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
           <option value={10}>Bold</option>
         </select>
         <div className="mx-1 h-6 w-px bg-border" />
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={clearBoard}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          title="Save whiteboard to this device"
+          onClick={() => { saveSnapshot(); toast.success("Whiteboard saved locally"); }}
+        >
+          <Save className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={clearBoard} title="Clear whiteboard">
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
