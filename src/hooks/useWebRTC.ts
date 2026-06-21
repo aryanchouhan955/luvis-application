@@ -283,7 +283,7 @@ export function useWebRTC(channelName: string) {
       .on("presence", { event: "leave" }, ({ leftPresences }) => {
         syncPresence();
         // Tear down peer connections for users who fully left
-        (leftPresences as Array<{ userId: string }>).forEach((p) => {
+        (leftPresences as unknown as Array<{ userId: string }>).forEach((p) => {
           const pc = peerConnections.current.get(p.userId);
           if (pc) pc.close();
           peerConnections.current.delete(p.userId);
