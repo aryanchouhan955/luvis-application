@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, ChevronRight, MessageSquare } from "lucide-react";
+import { ReactionsBar } from "@/components/room/ReactionsBar";
 
 interface Msg {
   id: string;
