@@ -38,7 +38,7 @@ import { VideoGrid } from "@/components/room/VideoGrid";
 import { SharedTopicEditor } from "@/components/room/SharedTopicEditor";
 import { ChatPanel } from "@/components/room/ChatPanel";
 import { logActivity } from "@/components/room/ActivityLog";
-import { ReactionsBar } from "@/components/room/ReactionsBar";
+
 import { CollabCursors } from "@/components/room/CollabCursors";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useStudyTracker } from "@/hooks/useStudyTracker";
