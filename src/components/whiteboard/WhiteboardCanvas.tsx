@@ -153,14 +153,17 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
     } catch {}
   }, [storageKey]);
 
+  // Return NORMALIZED position (0..1) relative to the canvas.
   const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    if ("touches" in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
-    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+    const clientX = "touches" in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    return {
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height,
+    };
   }, []);
 
   const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -175,16 +178,20 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
     const pos = getPos(e);
     const currentTool = toolRef.current;
     const currentColor = colorRef.current;
-    const currentWidth = currentTool === "eraser" ? 20 : lineWidthRef.current;
+    // Normalize stroke width against the canvas short side so the line
+    // looks the same across different participant viewports.
+    const canvas = canvasRef.current;
+    const refSize = canvas ? Math.min(canvas.width, canvas.height) : 600;
+    const pixelWidth = currentTool === "eraser" ? 20 : lineWidthRef.current;
+    const normWidth = pixelWidth / refSize;
 
-    drawSegment(ctx, lastPos.current, pos, currentColor, currentWidth, currentTool);
+    drawSegment(ctx, lastPos.current, pos, currentColor, normWidth, currentTool);
 
-    // Batch broadcast
     pendingBroadcast.current.push({
       from: lastPos.current,
       to: pos,
       strokeColor: currentColor,
-      strokeWidth: currentWidth,
+      strokeWidth: normWidth,
       toolType: currentTool,
     });
 
@@ -198,7 +205,6 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
   const stopDraw = useCallback(() => {
     isDrawing.current = false;
     lastPos.current = null;
-    // Flush remaining
     if (pendingBroadcast.current.length > 0) {
       flushBroadcasts();
     }
