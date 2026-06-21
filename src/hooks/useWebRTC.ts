@@ -8,6 +8,11 @@ interface Participant {
   email?: string;
 }
 
+export interface PresenceUser {
+  userId: string;
+  email?: string;
+}
+
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
