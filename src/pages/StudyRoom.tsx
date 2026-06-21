@@ -69,6 +69,7 @@ export default function StudyRoom() {
   const {
     localStream,
     participants,
+    presence,
     micOn,
     camOn,
     speakerOn,
