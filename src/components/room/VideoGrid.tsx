@@ -113,7 +113,7 @@ export function VideoGrid({ localStream, participants, presence = [], speakerOn,
   // Merge presence + WebRTC streams. Presence guarantees everyone shows up
   // immediately on join and persists across refreshes.
   const streamByUser = new Map(participants.map((p) => [p.userId, p]));
-  const others = presence
+  const others: Array<{ userId: string; email?: string; stream: MediaStream | null }> = presence
     .filter((p) => p.userId !== (localUserId ?? user?.id))
     .map((p) => {
       const withStream = streamByUser.get(p.userId);
