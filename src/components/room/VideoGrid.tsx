@@ -10,9 +10,15 @@ interface Participant {
   email?: string;
 }
 
+interface PresenceUser {
+  userId: string;
+  email?: string;
+}
+
 interface VideoGridProps {
   localStream: MediaStream | null;
   participants: Participant[];
+  presence?: PresenceUser[];
   speakerOn: boolean;
   raisedHands?: Record<string, boolean>;
   localUserId?: string;
