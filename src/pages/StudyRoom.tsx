@@ -202,11 +202,13 @@ export default function StudyRoom() {
                 <VideoGrid
                   localStream={localStream}
                   participants={participants}
+                  presence={presence}
                   speakerOn={speakerOn}
                   raisedHands={raisedHands}
                   localUserId={user?.id}
                   localRaised={myHand}
                 />
+
               </div>
             </div>
           </ResizablePanel>
