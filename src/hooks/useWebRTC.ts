@@ -263,10 +263,34 @@ export function useWebRTC(channelName: string) {
   useEffect(() => {
     if (!channelName || !user) return;
 
-    const channel = supabase.channel(`webrtc-${channelName}`);
+    const channel = supabase.channel(`webrtc-${channelName}`, {
+      config: { presence: { key: user.id } },
+    });
     channelRef.current = channel;
 
+    const syncPresence = () => {
+      const state = channel.presenceState() as Record<string, Array<{ userId: string; email?: string }>>;
+      const list: PresenceUser[] = Object.values(state)
+        .map((arr) => arr[0])
+        .filter(Boolean)
+        .map((p) => ({ userId: p.userId, email: p.email }));
+      setPresence(list);
+    };
+
     channel
+      .on("presence", { event: "sync" }, syncPresence)
+      .on("presence", { event: "join" }, syncPresence)
+      .on("presence", { event: "leave" }, ({ leftPresences }) => {
+        syncPresence();
+        // Tear down peer connections for users who fully left
+        (leftPresences as Array<{ userId: string }>).forEach((p) => {
+          const pc = peerConnections.current.get(p.userId);
+          if (pc) pc.close();
+          peerConnections.current.delete(p.userId);
+          pendingIceCandidates.current.delete(p.userId);
+          setParticipants((prev) => prev.filter((x) => x.userId !== p.userId));
+        });
+      })
       .on("broadcast", { event: "user-joined" }, async ({ payload }) => {
         if (payload.userId === user.id) return;
 
@@ -336,8 +360,9 @@ export function useWebRTC(channelName: string) {
         pendingIceCandidates.current.delete(payload.userId);
         setParticipants((prev) => prev.filter((participant) => participant.userId !== payload.userId));
       })
-      .subscribe((status) => {
+      .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
+          await channel.track({ userId: user.id, email: user.email });
           channel.send({
             type: "broadcast",
             event: "user-joined",
@@ -352,6 +377,7 @@ export function useWebRTC(channelName: string) {
         event: "user-left",
         payload: { userId: user.id },
       });
+      void channel.untrack();
       peerConnections.current.forEach((pc) => pc.close());
       peerConnections.current.clear();
       pendingIceCandidates.current.clear();
@@ -359,6 +385,7 @@ export function useWebRTC(channelName: string) {
       localStreamRef.current = null;
       setLocalStream(null);
       setParticipants([]);
+      setPresence([]);
       supabase.removeChannel(channel);
     };
   }, [channelName, user, createOfferForPeer, createPeerConnection, flushPendingIceCandidates, upsertParticipant]);
@@ -366,6 +393,7 @@ export function useWebRTC(channelName: string) {
   return {
     localStream,
     participants,
+    presence,
     micOn,
     camOn,
     speakerOn,
