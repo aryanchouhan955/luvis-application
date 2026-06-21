@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, ChevronRight, MessageSquare } from "lucide-react";
+import { ReactionsBar } from "@/components/room/ReactionsBar";
 
 interface Msg {
   id: string;
@@ -75,6 +76,10 @@ export function ChatPanel({ roomId, open, onToggle }: Props) {
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle}>
           <ChevronRight className="h-4 w-4" />
         </Button>
+      </div>
+      {/* Quick reactions live next to chat where they're most contextually relevant */}
+      <div className="border-b border-border px-3 py-2">
+        <ReactionsBar roomId={roomId} />
       </div>
       <ScrollArea className="flex-1">
         <div ref={scrollRef} className="space-y-3 p-3">

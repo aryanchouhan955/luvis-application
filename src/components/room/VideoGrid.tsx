@@ -10,9 +10,15 @@ interface Participant {
   email?: string;
 }
 
+interface PresenceUser {
+  userId: string;
+  email?: string;
+}
+
 interface VideoGridProps {
   localStream: MediaStream | null;
   participants: Participant[];
+  presence?: PresenceUser[];
   speakerOn: boolean;
   raisedHands?: Record<string, boolean>;
   localUserId?: string;
@@ -101,24 +107,44 @@ function VideoTile({
   );
 }
 
-export function VideoGrid({ localStream, participants, speakerOn, raisedHands = {}, localUserId, localRaised = false }: VideoGridProps) {
+export function VideoGrid({ localStream, participants, presence = [], speakerOn, raisedHands = {}, localUserId, localRaised = false }: VideoGridProps) {
   const { user } = useAuth();
+
+  // Merge presence + WebRTC streams. Presence guarantees everyone shows up
+  // immediately on join and persists across refreshes.
+  const streamByUser = new Map(participants.map((p) => [p.userId, p]));
+  const others: Array<{ userId: string; email?: string; stream: MediaStream | null }> = presence
+    .filter((p) => p.userId !== (localUserId ?? user?.id))
+    .map((p) => {
+      const withStream = streamByUser.get(p.userId);
+      return {
+        userId: p.userId,
+        email: p.email ?? withStream?.email,
+        stream: withStream?.stream ?? null,
+      };
+    });
+
+  // Include any peer-connected participants not yet in presence (race condition safety)
+  participants.forEach((p) => {
+    if (p.userId === (localUserId ?? user?.id)) return;
+    if (!others.find((o) => o.userId === p.userId)) others.push(p);
+  });
 
   return (
     <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
       <p className="col-span-full mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        Participants
+        Participants ({others.length + 1})
       </p>
       <VideoTile
         stream={localStream}
-        label={user?.email?.split("@")[0] || "You"}
+        label={`${user?.email?.split("@")[0] || "You"} (You)`}
         muted
         speakerOn={speakerOn}
         mirror
         isSelf
         raised={localRaised}
       />
-      {participants.map((p) => (
+      {others.map((p) => (
         <VideoTile
           key={p.userId}
           stream={p.stream}
@@ -128,7 +154,7 @@ export function VideoGrid({ localStream, participants, speakerOn, raisedHands = 
           raised={!!raisedHands[p.userId]}
         />
       ))}
-      {participants.length === 0 && (
+      {others.length === 0 && (
         <div className="col-span-full flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
           Waiting for others...
         </div>

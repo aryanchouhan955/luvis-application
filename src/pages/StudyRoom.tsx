@@ -38,7 +38,7 @@ import { VideoGrid } from "@/components/room/VideoGrid";
 import { SharedTopicEditor } from "@/components/room/SharedTopicEditor";
 import { ChatPanel } from "@/components/room/ChatPanel";
 import { logActivity } from "@/components/room/ActivityLog";
-import { ReactionsBar } from "@/components/room/ReactionsBar";
+
 import { CollabCursors } from "@/components/room/CollabCursors";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useStudyTracker } from "@/hooks/useStudyTracker";
@@ -69,6 +69,7 @@ export default function StudyRoom() {
   const {
     localStream,
     participants,
+    presence,
     micOn,
     camOn,
     speakerOn,
@@ -201,11 +202,13 @@ export default function StudyRoom() {
                 <VideoGrid
                   localStream={localStream}
                   participants={participants}
+                  presence={presence}
                   speakerOn={speakerOn}
                   raisedHands={raisedHands}
                   localUserId={user?.id}
                   localRaised={myHand}
                 />
+
               </div>
             </div>
           </ResizablePanel>
@@ -330,8 +333,8 @@ export default function StudyRoom() {
       </div>
 
       {/* Bottom control center */}
-      <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3">
-        {/* Left: room id + invite */}
+      <div className="relative flex items-center justify-between gap-3 border-t border-border bg-card px-4 py-3">
+        {/* Left: room id + invite + panel toggles */}
         <div className="flex items-center gap-2">
           <button
             onClick={copyRoomId}
@@ -370,49 +373,54 @@ export default function StudyRoom() {
           </Button>
         </div>
 
-        {/* Center: primary media controls */}
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant={micOn ? "default" : "outline"}
-            size="icon"
-            onClick={toggleMic}
-            className="h-12 w-12 rounded-full"
-          >
-            {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-          </Button>
-          <Button
-            variant={camOn ? "default" : "outline"}
-            size="icon"
-            onClick={toggleCam}
-            className="h-12 w-12 rounded-full"
-          >
-            {camOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-          </Button>
-          <Button
-            variant={speakerOn ? "default" : "outline"}
-            size="icon"
-            onClick={toggleSpeaker}
-            className="h-12 w-12 rounded-full"
-          >
-            {speakerOn ? (
-              <Volume2 className="h-5 w-5" />
-            ) : (
-              <VolumeX className="h-5 w-5" />
-            )}
-          </Button>
-          <Button
-            variant="destructive"
-            size="icon"
-            onClick={() => navigate("/dashboard")}
-            className="h-12 w-12 rounded-full"
-          >
-            <PhoneOff className="h-5 w-5" />
-          </Button>
+        {/* Center: primary media controls — absolutely centered so they stay perfectly aligned */}
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center">
+          <div className="pointer-events-auto flex items-center justify-center gap-3">
+            <Button
+              variant={micOn ? "default" : "outline"}
+              size="icon"
+              onClick={toggleMic}
+              className="h-12 w-12 rounded-full"
+              title={micOn ? "Mute mic" : "Unmute mic"}
+            >
+              {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            </Button>
+            <Button
+              variant={camOn ? "default" : "outline"}
+              size="icon"
+              onClick={toggleCam}
+              className="h-12 w-12 rounded-full"
+              title={camOn ? "Stop camera" : "Start camera"}
+            >
+              {camOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+            </Button>
+            <Button
+              variant={speakerOn ? "default" : "outline"}
+              size="icon"
+              onClick={toggleSpeaker}
+              className="h-12 w-12 rounded-full"
+              title={speakerOn ? "Mute speaker" : "Unmute speaker"}
+            >
+              {speakerOn ? (
+                <Volume2 className="h-5 w-5" />
+              ) : (
+                <VolumeX className="h-5 w-5" />
+              )}
+            </Button>
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={() => navigate("/dashboard")}
+              className="h-12 w-12 rounded-full"
+              title="Leave room"
+            >
+              <PhoneOff className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
-        {/* Right: secondary controls */}
+        {/* Right: secondary controls (reactions moved into chat panel) */}
         <div className="flex items-center gap-2">
-          <ReactionsBar roomId={roomId || ""} />
           <Button
             variant={myHand ? "default" : "outline"}
             size="sm"
