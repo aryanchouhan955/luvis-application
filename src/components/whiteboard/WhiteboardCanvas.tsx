@@ -48,21 +48,36 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
 
-  const drawSegment = useCallback((ctx: CanvasRenderingContext2D, from: {x:number,y:number}, to: {x:number,y:number}, strokeColor: string, strokeWidth: number, toolType: string) => {
+  // Draw a stroke given NORMALIZED coordinates (0..1). Converted to pixels
+  // using the local canvas size so every participant sees the same relative
+  // line regardless of their canvas dimensions.
+  const drawSegment = useCallback((
+    ctx: CanvasRenderingContext2D,
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    strokeColor: string,
+    strokeWidthNorm: number,
+    toolType: string,
+  ) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const scale = Math.min(w, h);
     ctx.save();
     if (toolType === "eraser") {
       ctx.globalCompositeOperation = "destination-out";
-      ctx.lineWidth = strokeWidth;
+      ctx.lineWidth = strokeWidthNorm * scale;
     } else {
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = strokeWidth;
+      ctx.lineWidth = strokeWidthNorm * scale;
     }
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
+    ctx.moveTo(from.x * w, from.y * h);
+    ctx.lineTo(to.x * w, to.y * h);
     ctx.stroke();
     ctx.restore();
   }, []);
