@@ -22,6 +22,7 @@ export function useWebRTC(channelName: string) {
   const { user } = useAuth();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [micOn, setMicOn] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
