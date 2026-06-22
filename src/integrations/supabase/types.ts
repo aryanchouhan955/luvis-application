@@ -180,6 +180,63 @@ export type Database = {
           },
         ]
       }
+      room_files: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          kind: string
+          language: string | null
+          name: string
+          parent_id: string | null
+          position: number
+          room_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          kind: string
+          language?: string | null
+          name: string
+          parent_id?: string | null
+          position?: number
+          room_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          language?: string | null
+          name?: string
+          parent_id?: string | null
+          position?: number
+          room_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_files_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "room_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_files_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       room_participants: {
         Row: {
           id: string
@@ -289,6 +346,7 @@ export type Database = {
         }[]
       }
       get_challenge_session: { Args: { _challenge_id: string }; Returns: Json }
+      is_room_participant: { Args: { _room_id: string }; Returns: boolean }
       join_room: {
         Args: { _password: string; _room_id: string }
         Returns: Json
