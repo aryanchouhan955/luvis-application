@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { WhiteboardCanvas } from "@/components/whiteboard/WhiteboardCanvas";
-import { CodeEditorPanel } from "@/components/editor/CodeEditorPanel";
+import { IDEPanel } from "@/components/ide/IDEPanel";
 import { Notepad } from "@/components/room/Notepad";
 import { PomodoroTimer } from "@/components/timer/PomodoroTimer";
 import { VideoGrid } from "@/components/room/VideoGrid";
@@ -277,13 +277,7 @@ export default function StudyRoom() {
                     </CollabCursors>
                   </TabsContent>
                   <TabsContent value="code" className="m-0 flex-1 overflow-hidden">
-                    <CollabCursors
-                      roomId={roomId || ""}
-                      panel="code"
-                      enabled={cursorsOn}
-                    >
-                      <CodeEditorPanel roomId={roomId || ""} />
-                    </CollabCursors>
+                    <IDEPanel roomDbId={room?.id ?? null} roomCode={roomId || ""} />
                   </TabsContent>
                 </Tabs>
               </ResizablePanel>
