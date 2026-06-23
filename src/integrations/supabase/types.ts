@@ -337,6 +337,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_realtime_topic: { Args: { _topic: string }; Returns: boolean }
       get_active_user_ranking: {
         Args: never
         Returns: {
