@@ -1,11 +1,17 @@
 import { useRef, useState, useEffect, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
-import { Pen, Eraser, Trash2, Save } from "lucide-react";
+import { Pen, Eraser, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   roomId: string;
+}
+
+function pad(n: number) { return n.toString().padStart(2, "0"); }
+function makeFilename(roomId: string) {
+  const d = new Date();
+  return `Room-${roomId}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}.png`;
 }
 
 const COLORS = ["#6C5CE7", "#00B894", "#E17055", "#0984E3", "#FDCB6E", "#E84393"];
