@@ -24,18 +24,14 @@ import {
   PhoneOff,
   Users,
   MessageSquare,
-  ChevronDown,
-  ChevronUp,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { WhiteboardCanvas } from "@/components/whiteboard/WhiteboardCanvas";
 import { IDEPanel } from "@/components/ide/IDEPanel";
-import { Notepad } from "@/components/room/Notepad";
 import { PomodoroTimer } from "@/components/timer/PomodoroTimer";
 import { VideoGrid } from "@/components/room/VideoGrid";
-import { SharedTopicEditor } from "@/components/room/SharedTopicEditor";
 import { ChatPanel } from "@/components/room/ChatPanel";
 import { logActivity } from "@/components/room/ActivityLog";
 
@@ -56,11 +52,9 @@ export default function StudyRoom() {
 
   const [participantsCollapsed, setParticipantsCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
-  const [topicCollapsed, setTopicCollapsed] = useState(false);
 
   const participantsRef = useRef<ImperativePanelHandle>(null);
   const chatRef = useRef<ImperativePanelHandle>(null);
-  const topicRef = useRef<ImperativePanelHandle>(null);
 
   const handChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -166,16 +160,9 @@ export default function StudyRoom() {
     if (p.isCollapsed()) p.expand();
     else p.collapse();
   };
-  const toggleTopic = () => {
-    const p = topicRef.current;
-    if (!p) return;
-    if (p.isCollapsed()) p.expand();
-    else p.collapse();
-  };
 
   return (
     <div className="relative flex h-[calc(100vh-4rem)] flex-col bg-background">
-      {/* Main horizontal area */}
       <div className="relative flex flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal">
           {/* Participants */}
@@ -208,80 +195,34 @@ export default function StudyRoom() {
                   localUserId={user?.id}
                   localRaised={myHand}
                 />
-
               </div>
             </div>
           </ResizablePanel>
 
           <ResizableHandle withHandle />
 
-          {/* Workspace + topic vertically split */}
+          {/* Workspace */}
           <ResizablePanel defaultSize={60} minSize={30}>
-            <ResizablePanelGroup direction="vertical">
-              <ResizablePanel
-                ref={topicRef}
-                defaultSize={12}
-                minSize={8}
-                maxSize={30}
-                collapsible
-                collapsedSize={0}
-                onCollapse={() => setTopicCollapsed(true)}
-                onExpand={() => setTopicCollapsed(false)}
-                className="transition-all duration-200"
-              >
-                <div className="h-full bg-card px-4 py-3">
-                  <SharedTopicEditor
-                    roomId={roomId || ""}
-                    onChangeNotify={(t) =>
-                      logActivity(roomId || "", `Topic updated: "${t.slice(0, 60)}"`)
-                    }
-                  />
-                </div>
-              </ResizablePanel>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={88}>
-                {/* Top restore handle for topic */}
-                {topicCollapsed && (
-                  <button
-                    onClick={toggleTopic}
-                    className="flex w-full items-center justify-center gap-1 border-b border-border bg-card/80 py-1 text-xs text-muted-foreground hover:bg-card hover:text-foreground"
-                  >
-                    <ChevronDown className="h-3 w-3" />
-                    Show topic
-                  </button>
-                )}
-                <Tabs defaultValue="whiteboard" className="flex h-full flex-col">
-                  <div className="border-b border-border px-4">
-                    <TabsList className="bg-transparent">
-                      <TabsTrigger value="whiteboard">Whiteboard</TabsTrigger>
-                      <TabsTrigger value="notepad">Notepad</TabsTrigger>
-                      <TabsTrigger value="code">Code Editor</TabsTrigger>
-                    </TabsList>
-                  </div>
-                  <TabsContent value="whiteboard" className="m-0 flex-1 overflow-hidden">
-                    <CollabCursors
-                      roomId={roomId || ""}
-                      panel="whiteboard"
-                      enabled={cursorsOn}
-                    >
-                      <WhiteboardCanvas roomId={roomId || ""} />
-                    </CollabCursors>
-                  </TabsContent>
-                  <TabsContent value="notepad" className="m-0 flex-1 overflow-hidden p-4">
-                    <CollabCursors
-                      roomId={roomId || ""}
-                      panel="notepad"
-                      enabled={cursorsOn}
-                    >
-                      <Notepad roomId={roomId} />
-                    </CollabCursors>
-                  </TabsContent>
-                  <TabsContent value="code" className="m-0 flex-1 overflow-hidden">
-                    <IDEPanel roomDbId={room?.id ?? null} roomCode={roomId || ""} />
-                  </TabsContent>
-                </Tabs>
-              </ResizablePanel>
-            </ResizablePanelGroup>
+            <Tabs defaultValue="whiteboard" className="flex h-full flex-col">
+              <div className="border-b border-border px-4">
+                <TabsList className="bg-transparent">
+                  <TabsTrigger value="whiteboard">Whiteboard</TabsTrigger>
+                  <TabsTrigger value="code">Code Editor</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent value="whiteboard" className="m-0 flex-1 overflow-hidden">
+                <CollabCursors
+                  roomId={roomId || ""}
+                  panel="whiteboard"
+                  enabled={cursorsOn}
+                >
+                  <WhiteboardCanvas roomId={roomId || ""} />
+                </CollabCursors>
+              </TabsContent>
+              <TabsContent value="code" className="m-0 flex-1 overflow-hidden">
+                <IDEPanel roomDbId={room?.id ?? null} roomCode={roomId || ""} />
+              </TabsContent>
+            </Tabs>
           </ResizablePanel>
 
           <ResizableHandle withHandle />
@@ -305,7 +246,6 @@ export default function StudyRoom() {
           </ResizablePanel>
         </ResizablePanelGroup>
 
-        {/* Restore handles when collapsed */}
         {participantsCollapsed && (
           <button
             onClick={toggleParticipants}
@@ -328,7 +268,6 @@ export default function StudyRoom() {
 
       {/* Bottom control center */}
       <div className="relative flex items-center justify-between gap-3 border-t border-border bg-card px-4 py-3">
-        {/* Left: room id + invite + panel toggles */}
         <div className="flex items-center gap-2">
           <button
             onClick={copyRoomId}
@@ -353,21 +292,8 @@ export default function StudyRoom() {
           >
             <Users className="h-4 w-4" />
           </Button>
-          <Button
-            variant={topicCollapsed ? "outline" : "ghost"}
-            size="sm"
-            onClick={toggleTopic}
-            title="Toggle topic"
-          >
-            {topicCollapsed ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronUp className="h-4 w-4" />
-            )}
-          </Button>
         </div>
 
-        {/* Center: primary media controls — absolutely centered so they stay perfectly aligned */}
         <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center">
           <div className="pointer-events-auto flex items-center justify-center gap-3">
             <Button
@@ -413,7 +339,6 @@ export default function StudyRoom() {
           </div>
         </div>
 
-        {/* Right: secondary controls (reactions moved into chat panel) */}
         <div className="flex items-center gap-2">
           <Button
             variant={myHand ? "default" : "outline"}
