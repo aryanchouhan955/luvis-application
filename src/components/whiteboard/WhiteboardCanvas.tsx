@@ -1,11 +1,17 @@
 import { useRef, useState, useEffect, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
-import { Pen, Eraser, Trash2, Save } from "lucide-react";
+import { Pen, Eraser, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   roomId: string;
+}
+
+function pad(n: number) { return n.toString().padStart(2, "0"); }
+function makeFilename(roomId: string) {
+  const d = new Date();
+  return `Room-${roomId}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}.png`;
 }
 
 const COLORS = ["#6C5CE7", "#00B894", "#E17055", "#0984E3", "#FDCB6E", "#E84393"];
@@ -252,10 +258,39 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          title="Save whiteboard to this device"
-          onClick={() => { saveSnapshot(); toast.success("Whiteboard saved locally"); }}
+          title="Download whiteboard as PNG"
+          onClick={() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            try {
+              // Composite onto a white background so transparent PNG areas
+              // export as the visible background color.
+              const out = document.createElement("canvas");
+              out.width = canvas.width;
+              out.height = canvas.height;
+              const octx = out.getContext("2d");
+              if (!octx) return;
+              octx.fillStyle = "#ffffff";
+              octx.fillRect(0, 0, out.width, out.height);
+              octx.drawImage(canvas, 0, 0);
+              out.toBlob((blob) => {
+                if (!blob) { toast.error("Export failed"); return; }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = makeFilename(roomId);
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                toast.success("Whiteboard downloaded");
+              }, "image/png");
+            } catch {
+              toast.error("Export failed");
+            }
+          }}
         >
-          <Save className="h-4 w-4" />
+          <Download className="h-4 w-4" />
         </Button>
         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={clearBoard} title="Clear whiteboard">
           <Trash2 className="h-4 w-4" />
