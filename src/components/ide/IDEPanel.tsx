@@ -76,8 +76,8 @@ async function readDirRecursive(
   path = ""
 ): Promise<LocalNode> {
   const children: LocalNode[] = [];
-  // @ts-expect-error - values() is supported but TS lib may not include it
-  for await (const entry of dirHandle.values()) {
+  // @ts-ignore - values() is supported but TS lib may not include it
+  for await (const entry of (dirHandle as any).values()) {
     const childPath = `${path}/${entry.name}`;
     if (entry.kind === "directory") {
       children.push(await readDirRecursive(entry as FileSystemDirectoryHandle, childPath));
