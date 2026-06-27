@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { log } from "console";
 
 export default defineConfig({
   plugins: [react()],
@@ -14,3 +15,6 @@ export default defineConfig({
     alias: { "@": path.resolve(__dirname, "./src") },
   },
 });
+console.log("Hii");
+
+

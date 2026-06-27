@@ -4,6 +4,7 @@ import path from "path";
 
 
 // https://vitejs.dev/config/
+// vitejs.dev
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
