@@ -1,13 +1,13 @@
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 -- Hash any existing plaintext passwords (bcrypt hashes start with $2)
 UPDATE public.rooms
-   SET password_hash = crypt(password_hash, gen_salt('bf'))
+   SET password_hash = extensions.crypt(password_hash, extensions.gen_salt('bf'))
  WHERE password_hash IS NOT NULL AND password_hash NOT LIKE '$2%';
 
 UPDATE public.challenges
-   SET password_hash = crypt(password_hash, gen_salt('bf'))
+   SET password_hash = extensions.crypt(password_hash, extensions.gen_salt('bf'))
  WHERE password_hash IS NOT NULL AND password_hash NOT LIKE '$2%';
 
 -- Trigger function: hash password on insert/update if not already bcrypt
@@ -18,7 +18,7 @@ SET search_path = public
 AS $$
 BEGIN
   IF NEW.password_hash IS NOT NULL AND NEW.password_hash NOT LIKE '$2%' THEN
-    NEW.password_hash := crypt(NEW.password_hash, gen_salt('bf'));
+    NEW.password_hash := extensions.crypt(NEW.password_hash, extensions.gen_salt('bf'));
   END IF;
   RETURN NEW;
 END;
@@ -66,7 +66,7 @@ BEGIN
   END IF;
 
   IF v_room.password_hash IS NULL
-     OR crypt(_password, v_room.password_hash) <> v_room.password_hash THEN
+     OR extensions.crypt(_password, v_room.password_hash) <> v_room.password_hash THEN
     RETURN jsonb_build_object('success', false, 'error', 'invalid_password');
   END IF;
 
@@ -104,7 +104,7 @@ BEGIN
   END IF;
 
   IF v_chal.password_hash IS NULL
-     OR crypt(_password, v_chal.password_hash) <> v_chal.password_hash THEN
+     OR extensions.crypt(_password, v_chal.password_hash) <> v_chal.password_hash THEN
     RETURN jsonb_build_object('success', false, 'error', 'invalid_password');
   END IF;
 
