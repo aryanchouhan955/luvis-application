@@ -14,7 +14,13 @@ function makeFilename(roomId: string) {
   return `Room-${roomId}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}.png`;
 }
 
-const COLORS = ["#6C5CE7", "#00B894", "#E17055", "#0984E3", "#FDCB6E", "#E84393"];
+interface StrokePayload {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  strokeColor: string;
+  strokeWidth: number;
+  toolType: "pen" | "eraser";
+}
 
 export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,7 +31,7 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
   const [lineWidth, setLineWidth] = useState(3);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const pendingBroadcast = useRef<any[]>([]);
+  const pendingBroadcast = useRef<StrokePayload[]>([]);
   const rafId = useRef<number | null>(null);
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
@@ -117,7 +123,9 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
         ctx?.drawImage(img, 0, 0);
       };
       img.src = data;
-    } catch {}
+    } catch (e) {
+      console.warn("Failed to load whiteboard data", e);
+    }
   }, [storageKey]);
 
   // Realtime sync
@@ -144,7 +152,7 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext("2d");
         if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
-        try { localStorage.removeItem(storageKey); } catch {}
+        try { localStorage.removeItem(storageKey); } catch (e) { console.warn("Failed to remove item", e); }
       })
       .subscribe();
 
@@ -156,7 +164,9 @@ export const WhiteboardCanvas = memo(function WhiteboardCanvas({ roomId }: Props
       const canvas = canvasRef.current;
       if (!canvas) return;
       localStorage.setItem(storageKey, canvas.toDataURL("image/png"));
-    } catch {}
+    } catch (e) {
+      console.warn("Failed to save whiteboard data", e);
+    }
   }, [storageKey]);
 
   // Return NORMALIZED position (0..1) relative to the canvas.

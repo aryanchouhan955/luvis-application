@@ -72,7 +72,7 @@ export default function Dashboard() {
       .eq("user_id", user.id)
       .order("submitted_at", { ascending: true })
       .limit(20)
-      .then(({ data }) => { if (data) setQuizScores(data as any); });
+      .then(({ data }) => { if (data) setQuizScores(data as unknown as { score: number; total_questions: number; submitted_at: string; challenges: { challenge_id: string } }[]); });
 
     // Ranking — users who signed in within the last 30 days
     (async () => {

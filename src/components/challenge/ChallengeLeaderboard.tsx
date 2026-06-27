@@ -44,7 +44,7 @@ export function ChallengeLeaderboard({ challengeDbId, userId }: Props) {
           user_id: s.user_id,
           score: s.score,
           total_questions: s.total_questions,
-          time_taken_seconds: (s as any).time_taken_seconds ?? 0,
+          time_taken_seconds: (s as Record<string, unknown>).time_taken_seconds as number ?? 0,
           displayName: profileMap.get(s.user_id) || s.user_id.slice(0, 8),
         }))
         .sort((a, b) => {

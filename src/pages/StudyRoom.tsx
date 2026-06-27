@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,8 +28,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
-import { WhiteboardCanvas } from "@/components/whiteboard/WhiteboardCanvas";
-import { IDEPanel } from "@/components/ide/IDEPanel";
+const WhiteboardCanvas = lazy(() => import("@/components/whiteboard/WhiteboardCanvas").then(m => ({ default: m.WhiteboardCanvas })));
+const IDEPanel = lazy(() => import("@/components/ide/IDEPanel").then(m => ({ default: m.IDEPanel })));
 import { PomodoroTimer } from "@/components/timer/PomodoroTimer";
 import { VideoGrid } from "@/components/room/VideoGrid";
 import { ChatPanel } from "@/components/room/ChatPanel";
@@ -44,7 +44,7 @@ export default function StudyRoom() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [room, setRoom] = useState<any>(null);
+  const [room, setRoom] = useState<Record<string, unknown> | null>(null);
   const [raisedHands, setRaisedHands] = useState<Record<string, boolean>>({});
   const [myHand, setMyHand] = useState(false);
   const [cursorsOn, setCursorsOn] = useState(true);
@@ -165,7 +165,7 @@ export default function StudyRoom() {
   };
 
   return (
-    <div className="relative flex h-[calc(100vh-4rem)] flex-col bg-background">
+    <div className="relative flex h-[calc(100dvh-4rem)] flex-col bg-background">
       <div className="relative flex flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal">
           {/* Participants */}
@@ -226,11 +226,15 @@ export default function StudyRoom() {
                   panel="whiteboard"
                   enabled={cursorsOn}
                 >
-                  <WhiteboardCanvas roomId={roomId || ""} />
+                  <Suspense fallback={<div className="flex h-full items-center justify-center">Loading Whiteboard...</div>}>
+                    <WhiteboardCanvas roomId={roomId || ""} />
+                  </Suspense>
                 </CollabCursors>
               </TabsContent>
               <TabsContent value="code" className="m-0 flex-1 overflow-hidden">
-                <IDEPanel roomDbId={room?.id ?? null} roomCode={roomId || ""} />
+                <Suspense fallback={<div className="flex h-full items-center justify-center">Loading Code Editor...</div>}>
+                  <IDEPanel roomDbId={room?.id ?? null} roomCode={roomId || ""} />
+                </Suspense>
               </TabsContent>
             </Tabs>
           </ResizablePanel>

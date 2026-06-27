@@ -30,10 +30,10 @@ export class SupabaseYProvider {
 
     this.channel
       .on("broadcast", { event: "y-update" }, ({ payload }) => {
-        try { Y.applyUpdate(doc, fromBase64(payload.update), this); } catch {}
+        try { Y.applyUpdate(doc, fromBase64(payload.update), this); } catch (e) { console.warn("Failed to apply y-update", e); }
       })
       .on("broadcast", { event: "y-awareness" }, ({ payload }) => {
-        try { applyAwarenessUpdate(this.awareness, fromBase64(payload.update), this); } catch {}
+        try { applyAwarenessUpdate(this.awareness, fromBase64(payload.update), this); } catch (e) { console.warn("Failed to apply y-awareness", e); }
       })
       .on("broadcast", { event: "y-sync-request" }, () => {
         // Send full state to newcomer

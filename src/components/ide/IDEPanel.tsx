@@ -119,6 +119,10 @@ async function downloadWorkspaceZip(roomDbId: string, files: RoomFile[], roomCod
       const content = contentMap.get(f.id) ?? "";
       zip.file(path, content);
       count++;
+      // Yield to main thread every 20 files to prevent UI freezing
+      if (count % 20 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     }
 
     const blob = await zip.generateAsync({ type: "blob" });
@@ -132,9 +136,9 @@ async function downloadWorkspaceZip(roomDbId: string, files: RoomFile[], roomCod
     URL.revokeObjectURL(url);
     toast.dismiss(toastId);
     toast.success(`Downloaded ${count} file${count !== 1 ? "s" : ""} as ZIP`);
-  } catch (e: any) {
+  } catch (e: unknown) {
     toast.dismiss(toastId);
-    toast.error(`Download failed: ${e.message || e}`);
+    toast.error(`Download failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -146,8 +150,8 @@ async function uploadDirToRoom(
   parentId: string | null,
   onProgress: (msg: string) => void,
 ): Promise<void> {
-  // @ts-ignore – values() is widely supported but missing from some TS lib definitions
-  for await (const entry of (dirHandle as any).values()) {
+  // @ts-expect-error - values() is widely supported but missing from some TS lib definitions
+  for await (const entry of dirHandle.values()) {
     if (entry.kind === "directory") {
       onProgress(`Creating folder: ${entry.name}`);
       const { data, error } = await supabase
@@ -396,10 +400,11 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
 
     let dirHandle: FileSystemDirectoryHandle;
     try {
-      // @ts-expect-error
+      // @ts-expect-error - showDirectoryPicker may not be in all TS lib versions
       dirHandle = await window.showDirectoryPicker({ mode: "read" });
-    } catch (e: any) {
-      if (e?.name !== "AbortError") toast.error(`Could not open folder: ${e.message || e}`);
+    } catch (e: unknown) {
+      const error = e as Error;
+      if (error?.name !== "AbortError") toast.error(`Could not open folder: ${error.message || String(e)}`);
       return;
     }
 
@@ -418,12 +423,12 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
         toast.loading(msg, { id: uploadToast });
       });
       toast.success(`"${dirHandle.name}" uploaded — all participants can see it now!`, { id: uploadToast });
-    } catch (e: any) {
-      toast.error(`Upload failed: ${e.message || e}`, { id: uploadToast });
+    } catch (e: unknown) {
+      toast.error(`Upload failed: ${e instanceof Error ? e.message : String(e)}`, { id: uploadToast });
     } finally {
       setUploading(false);
     }
-  }, [roomDbId, roomCode, user]);
+  }, [roomDbId, user]);
 
   // ── Cursor name widgets (Monaco awareness) ────────────────────────────────────
   const clearCursorWidgets = useCallback(() => {
@@ -585,19 +590,19 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Top bar */}
-      <div className="flex items-center gap-2 border-b border-border bg-card px-2 py-1.5 shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7"
+      <div className="flex items-center gap-2 border-b border-border bg-card px-2 py-1.5 shrink-0 overflow-x-auto no-scrollbar whitespace-nowrap">
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0"
           onClick={() => setSidebarOpen((v) => !v)}
           title={sidebarOpen ? "Hide explorer" : "Show explorer"}>
           {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
         </Button>
-        <span className="text-xs font-mono text-muted-foreground">
+        <span className="text-xs font-mono text-muted-foreground shrink-0">
           Room <span className="text-foreground font-semibold">{roomCode}</span>
         </span>
 
         {/* Collaborator avatars */}
         {presenceList.length > 0 && (
-          <div className="hidden md:flex items-center gap-1 ml-1">
+          <div className="hidden md:flex items-center gap-1 ml-1 shrink-0">
             {presenceList.slice(0, 6).map((p) => (
               <div key={p.userId}
                 title={`${p.name}${p.fileName ? ` → ${p.fileName}` : ""}`}
@@ -606,30 +611,30 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
                 {p.name.charAt(0).toUpperCase()}
               </div>
             ))}
-            {presenceList.length > 6 && <span className="text-[10px] text-muted-foreground">+{presenceList.length - 6}</span>}
+            {presenceList.length > 6 && <span className="text-[10px] text-muted-foreground shrink-0">+{presenceList.length - 6}</span>}
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-1.5">
-          <span className="flex items-center gap-1 text-[11px] text-emerald-500 font-medium">
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <span className="flex items-center gap-1 text-[11px] text-emerald-500 font-medium shrink-0">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
           </span>
           <Button size="sm" variant="ghost" onClick={runActiveFile} disabled={!activeTab}
-            title="Run active JS file" className="h-7 px-2 text-xs">
-            <Play className="mr-1 h-3.5 w-3.5" /> Run
+            title="Run active JS file" className="h-7 px-2 text-xs shrink-0">
+            <Play className="sm:mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">Run</span>
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setTerminalOpen((v) => !v)}
-            className="h-7 px-2 text-xs">
-            <TerminalIcon className="mr-1 h-3.5 w-3.5" /> Terminal
+            className="h-7 px-2 text-xs shrink-0">
+            <TerminalIcon className="sm:mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">Terminal</span>
           </Button>
           <Button
             size="sm" variant="ghost"
             onClick={() => roomDbId && downloadWorkspaceZip(roomDbId, files, roomCode)}
             disabled={!roomDbId || files.filter((f) => f.kind === "file").length === 0}
             title="Download entire workspace as ZIP"
-            className="h-7 px-2 text-xs"
+            className="h-7 px-2 text-xs shrink-0"
           >
-            <Download className="mr-1 h-3.5 w-3.5" /> Download
+            <Download className="sm:mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">Download</span>
           </Button>
         </div>
       </div>

@@ -23,7 +23,7 @@ export function useSpeakingDetection(stream: MediaStream | null, enabled: boolea
     let analyser: AnalyserNode | null = null;
     let source: MediaStreamAudioSourceNode | null = null;
     try {
-      const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
+      const AC = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext) as typeof AudioContext;
       const ctx = new AC();
       ctxRef.current = ctx;
       source = ctx.createMediaStreamSource(stream);
@@ -57,9 +57,9 @@ export function useSpeakingDetection(stream: MediaStream | null, enabled: boolea
     return () => {
       cancelled = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      try { source?.disconnect(); } catch {}
-      try { analyser?.disconnect(); } catch {}
-      try { ctxRef.current?.close(); } catch {}
+      try { source?.disconnect(); } catch (e) { console.warn("Failed to disconnect source", e); }
+      try { analyser?.disconnect(); } catch (e) { console.warn("Failed to disconnect analyser", e); }
+      try { ctxRef.current?.close(); } catch (e) { console.warn("Failed to close context", e); }
       ctxRef.current = null;
     };
   }, [stream, enabled]);

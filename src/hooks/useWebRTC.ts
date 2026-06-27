@@ -370,6 +370,9 @@ export function useWebRTC(channelName: string) {
           });
         }
       });
+    const currentPeerConnections = peerConnections.current;
+    const currentPendingIce = pendingIceCandidates.current;
+    const currentLocalStream = localStreamRef.current;
 
     return () => {
       channel.send({
@@ -378,10 +381,10 @@ export function useWebRTC(channelName: string) {
         payload: { userId: user.id },
       });
       void channel.untrack();
-      peerConnections.current.forEach((pc) => pc.close());
-      peerConnections.current.clear();
-      pendingIceCandidates.current.clear();
-      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      currentPeerConnections.forEach((pc) => pc.close());
+      currentPeerConnections.clear();
+      currentPendingIce.clear();
+      currentLocalStream?.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
       setLocalStream(null);
       setParticipants([]);

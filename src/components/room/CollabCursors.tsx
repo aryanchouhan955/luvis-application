@@ -68,7 +68,7 @@ export function CollabCursors({ roomId, panel, enabled, children }: Props) {
       if (user) ch.send({ type: "broadcast", event: "leave", payload: { userId: user.id } });
       supabase.removeChannel(ch);
     };
-  }, [enabled, roomId, panel, user?.id]);
+  }, [enabled, roomId, panel, user]);
 
   const handleMove = (e: React.MouseEvent) => {
     if (!enabled || !user) return;

@@ -63,13 +63,13 @@ export function CodeEditorPanel({ roomId }: Props) {
       const savedLang = localStorage.getItem(langKey);
       if (saved !== null) setCode(saved);
       if (savedLang) setLanguage(savedLang);
-    } catch {}
+    } catch (e) { console.warn("Failed to read from localStorage", e); }
   }, [storageKey, langKey]);
 
   // Autosave
   useEffect(() => {
     const t = setTimeout(() => {
-      try { localStorage.setItem(storageKey, code); localStorage.setItem(langKey, language); } catch {}
+      try { localStorage.setItem(storageKey, code); localStorage.setItem(langKey, language); } catch (e) { console.warn("Failed to write to localStorage", e); }
     }, 500);
     return () => clearTimeout(t);
   }, [code, language, storageKey, langKey]);
@@ -120,7 +120,6 @@ export function CodeEditorPanel({ roomId }: Props) {
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, user?.id]);
 
   // Inject scoped CSS for each remote caret (color + name label)

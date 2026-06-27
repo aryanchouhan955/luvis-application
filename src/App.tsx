@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { NetworkStatus } from "@/components/layout/NetworkStatus";
 
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -29,6 +30,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <NetworkStatus />
           <BrowserRouter>
             <Routes>
               <Route element={<AppShell />}>

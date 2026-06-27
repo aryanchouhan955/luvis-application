@@ -64,7 +64,7 @@ export default function ChallengeRoom() {
         success: boolean;
         error?: string;
         challenge?: { id: string; timer_seconds: number; question_count: number };
-        questions?: Array<{ id: string; question_text: string; question_type: string; options: any }>;
+        questions?: Array<{ id: string; question_text: string; question_type: string; options: unknown }>;
       } | null;
 
       if (error || !result?.success || !result.challenge) {
@@ -97,11 +97,13 @@ export default function ChallengeRoom() {
     loadQuestions();
   }, [challengeId]);
 
+  const submitAnswerRef = useRef<(timedOut: boolean) => Promise<void>>();
+
   const handleTimeUp = useCallback(() => {
     if (!finished && questions.length > 0) {
-      submitAnswer(true);
+      submitAnswerRef.current?.(true);
     }
-  }, [finished, questions.length, currentQ, answer]);
+  }, [finished, questions.length]);
 
   const submitAnswer = async (timedOut = false) => {
     const question = questions[currentQ];
@@ -154,6 +156,7 @@ export default function ChallengeRoom() {
     }
   };
 
+  submitAnswerRef.current = submitAnswer;
 
   if (loading) {
     return (
