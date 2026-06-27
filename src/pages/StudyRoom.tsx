@@ -49,6 +49,7 @@ export default function StudyRoom() {
   const [myHand, setMyHand] = useState(false);
   const [cursorsOn, setCursorsOn] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("luvis_active_tab") || "code");
 
   const [participantsCollapsed, setParticipantsCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
@@ -205,11 +206,18 @@ export default function StudyRoom() {
 
           {/* Workspace */}
           <ResizablePanel defaultSize={60} minSize={30}>
-            <Tabs defaultValue="whiteboard" className="flex h-full flex-col">
+            <Tabs 
+              value={activeTab} 
+              onValueChange={(val) => {
+                setActiveTab(val);
+                localStorage.setItem("luvis_active_tab", val);
+              }} 
+              className="flex h-full flex-col"
+            >
               <div className="border-b border-border px-4">
                 <TabsList className="bg-transparent">
-                  <TabsTrigger value="whiteboard">Whiteboard</TabsTrigger>
                   <TabsTrigger value="code">Code Editor</TabsTrigger>
+                  <TabsTrigger value="whiteboard">Whiteboard</TabsTrigger>
                 </TabsList>
               </div>
               <TabsContent value="whiteboard" className="m-0 flex-1 overflow-hidden">
