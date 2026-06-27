@@ -14,6 +14,8 @@ function makeFilename(roomId: string) {
   return `Room-${roomId}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}.png`;
 }
 
+const COLORS = ["#6C5CE7", "#00B894", "#E17055", "#0984E3", "#FDCB6E", "#E84393"];
+
 interface StrokePayload {
   from: { x: number; y: number };
   to: { x: number; y: number };
