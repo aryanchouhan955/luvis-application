@@ -80,13 +80,15 @@ export default function StudyRoom() {
     if (!roomId) return;
     supabase
       .from("rooms")
-      .select("*")
+      .select("id, room_id, timer_duration, created_by, is_active")
       .eq("room_id", roomId)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error("[StudyRoom] Failed to fetch room:", error.message);
         if (data) setRoom(data);
       });
   }, [roomId]);
+
 
   useEffect(() => {
     if (!roomId || !user) return;
