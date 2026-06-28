@@ -39,6 +39,7 @@ import { CollabCursors } from "@/components/room/CollabCursors";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useStudyTracker } from "@/hooks/useStudyTracker";
 import { cn } from "@/lib/utils";
+import { MobileBottomNav } from "@/components/room/MobileBottomNav";
 
 export default function StudyRoom() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -50,6 +51,7 @@ export default function StudyRoom() {
   const [cursorsOn, setCursorsOn] = useState(true);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem("luvis_active_tab") || "code");
+  const [mobileTab, setMobileTab] = useState<"video" | "code" | "whiteboard" | "chat" | "participants">("code");
 
   const [participantsCollapsed, setParticipantsCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
@@ -164,8 +166,17 @@ export default function StudyRoom() {
     else p.collapse();
   };
 
+  const handleMobileTabChange = (tab: "video" | "code" | "whiteboard" | "chat" | "participants" | "files") => {
+    if (tab === "files") tab = "code";
+    setMobileTab(tab as any);
+    if (tab === "code" || tab === "whiteboard") {
+      setActiveTab(tab);
+      localStorage.setItem("luvis_active_tab", tab);
+    }
+  };
+
   return (
-    <div className="relative flex h-[calc(100dvh-4rem)] flex-col bg-background">
+    <div className="relative flex h-[calc(100dvh-4rem)] flex-col bg-background mobile-room-layout">
       <div className="relative flex flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal">
           {/* Participants */}
@@ -180,7 +191,8 @@ export default function StudyRoom() {
             onExpand={() => setParticipantsCollapsed(false)}
             className={cn(
               "transition-all duration-200",
-              participantsCollapsed && "min-w-0"
+              participantsCollapsed && "md:min-w-0",
+              (mobileTab === "video" || mobileTab === "participants") ? "mobile-active" : ""
             )}
           >
             <div className="flex h-full flex-col border-r border-border bg-card p-3">
@@ -202,10 +214,16 @@ export default function StudyRoom() {
             </div>
           </ResizablePanel>
 
-          <ResizableHandle withHandle />
+          <ResizableHandle withHandle className="hidden md:flex" />
 
           {/* Workspace */}
-          <ResizablePanel defaultSize={60} minSize={30}>
+          <ResizablePanel 
+            defaultSize={60} 
+            minSize={30}
+            className={cn(
+              (mobileTab === "code" || mobileTab === "whiteboard") ? "mobile-active" : ""
+            )}
+          >
             <Tabs 
               value={activeTab} 
               onValueChange={(val) => {
@@ -214,7 +232,7 @@ export default function StudyRoom() {
               }} 
               className="flex h-full flex-col"
             >
-              <div className="border-b border-border px-4">
+              <div className="border-b border-border px-4 hidden md:block">
                 <TabsList className="bg-transparent">
                   <TabsTrigger value="code">Code Editor</TabsTrigger>
                   <TabsTrigger value="whiteboard">Whiteboard</TabsTrigger>
@@ -239,7 +257,7 @@ export default function StudyRoom() {
             </Tabs>
           </ResizablePanel>
 
-          <ResizableHandle withHandle />
+          <ResizableHandle withHandle className="hidden md:flex" />
 
           {/* Chat */}
           <ResizablePanel
@@ -253,7 +271,8 @@ export default function StudyRoom() {
             onExpand={() => setChatCollapsed(false)}
             className={cn(
               "transition-all duration-200",
-              chatCollapsed && "min-w-0"
+              chatCollapsed && "md:min-w-0",
+              mobileTab === "chat" ? "mobile-active" : ""
             )}
           >
             <ChatPanel roomId={roomId || ""} open onToggle={toggleChat} />
@@ -280,8 +299,14 @@ export default function StudyRoom() {
         )}
       </div>
 
-      {/* Bottom control center */}
-      <div className="relative flex items-center justify-between gap-3 border-t border-border bg-card px-4 py-3">
+      <MobileBottomNav 
+        activeTab={mobileTab} 
+        onTabChange={handleMobileTabChange}
+        className="md:hidden" 
+      />
+
+      {/* Bottom control center - Desktop Only */}
+      <div className="hidden md:flex relative items-center justify-between gap-3 border-t border-border bg-card px-4 py-3">
         <div className="flex items-center gap-2">
           <button
             onClick={copyRoomId}

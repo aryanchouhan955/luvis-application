@@ -201,19 +201,16 @@ export default function ChallengeRoom() {
         <p className="text-sm text-muted-foreground">Question {currentQ + 1}/{questions.length}</p>
       </div>
 
-      {/* Mobile sidebar */}
-      <div className="border-b border-border bg-card p-3 lg:hidden">
-        <div className="space-y-3">
-          <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
-          <ChallengeTimer timeLimit={timePerQuestion} questionIndex={currentQ} roomId={challengeId} onTimeUp={handleTimeUp} />
-          <div className="rounded-lg border border-border bg-muted/50 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Your Score</p>
-            <p className="text-2xl font-bold text-primary">{score}/{questions.length}</p>
-          </div>
+      {/* Mobile top bar (Timer & Score) */}
+      <div className="flex justify-between items-center border-b border-border bg-card p-3 lg:hidden sticky top-0 z-10 safe-pt">
+        <ChallengeTimer timeLimit={timePerQuestion} questionIndex={currentQ} roomId={challengeId} onTimeUp={handleTimeUp} />
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground">Score:</p>
+          <p className="text-lg font-bold text-primary">{score}/{questions.length}</p>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Desktop sidebar */}
         <div className="hidden w-64 flex-col gap-2 border-r border-border bg-card p-3 lg:flex">
           <VideoGrid localStream={localStream} participants={participants} speakerOn={speakerOn} />
@@ -249,11 +246,14 @@ export default function ChallengeRoom() {
                   className="text-lg"
                 />
               )}
-              <Button onClick={() => submitAnswer(false)} disabled={!answer.trim()} className="w-full luvis-gradient text-white">
-                {currentQ + 1 < questions.length ? "Submit & Next" : "Submit & Finish"}
-              </Button>
             </CardContent>
           </Card>
+          
+          <div className="mt-6 w-full max-w-xl pb-24 md:pb-0">
+            <Button onClick={() => submitAnswer(false)} disabled={!answer.trim()} className="w-full h-14 md:h-12 text-lg md:text-base luvis-gradient text-white shadow-lg">
+              {currentQ + 1 < questions.length ? "Submit & Next" : "Submit & Finish"}
+            </Button>
+          </div>
         </div>
       </div>
 

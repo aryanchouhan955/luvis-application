@@ -186,7 +186,7 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
   const [files, setFiles] = useState<RoomFile[]>([]);
   const [openTabs, setOpenTabs] = useState<RoomTab[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== "undefined" ? window.innerWidth > 768 : true);
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [problems, setProblems] = useState<editor.IMarker[]>([]);
   const [remotePresence, setRemotePresence] = useState<Record<string, RemotePresence>>({});
@@ -336,6 +336,7 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
   const openFile = useCallback(async (file: RoomFile) => {
     const lang = file.language || langFromName(file.name);
     await openFileById(file.id, file.name, lang);
+    if (window.innerWidth <= 768) setSidebarOpen(false); // auto close sidebar on mobile
     tabSyncChannelRef.current?.send({
       type: "broadcast", event: "tab-open",
       payload: { fileId: file.id, name: file.name, language: lang },
@@ -590,13 +591,13 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Top bar */}
-      <div className="flex items-center gap-2 border-b border-border bg-card px-2 py-1.5 shrink-0 overflow-x-auto no-scrollbar whitespace-nowrap">
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+      <div className="flex items-center gap-2 border-b border-border bg-card px-2 py-2 shrink-0 overflow-x-auto no-scrollbar whitespace-nowrap min-h-[48px]">
+        <Button variant={sidebarOpen ? "secondary" : "ghost"} size="icon" className="h-8 w-8 shrink-0"
           onClick={() => setSidebarOpen((v) => !v)}
           title={sidebarOpen ? "Hide explorer" : "Show explorer"}>
           {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
         </Button>
-        <span className="text-xs font-mono text-muted-foreground shrink-0">
+        <span className="text-xs font-mono text-muted-foreground shrink-0 hidden sm:inline">
           Room <span className="text-foreground font-semibold">{roomCode}</span>
         </span>
 
@@ -639,10 +640,18 @@ export function IDEPanel({ roomDbId, roomCode }: Props) {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {/* Mobile Backdrop */}
+        {sidebarOpen && (
+          <div 
+            className="md:hidden absolute inset-0 bg-background/80 backdrop-blur-sm z-40" 
+            onClick={() => setSidebarOpen(false)} 
+          />
+        )}
+        
         {/* Sidebar */}
         {sidebarOpen && (
-          <div className="hidden md:flex w-56 shrink-0 border-r border-border">
+          <div className="absolute inset-y-0 left-0 z-50 w-64 bg-background border-r border-border md:static md:w-56 shadow-2xl md:shadow-none flex flex-col transition-all">
             <FileExplorer
               files={files}
               activeFileId={activeFileId}

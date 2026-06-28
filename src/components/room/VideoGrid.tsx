@@ -65,7 +65,7 @@ function VideoTile({
   return (
     <div
       className={cn(
-        "relative flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-muted ring-2 ring-transparent transition-all",
+        "relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg bg-muted ring-2 ring-transparent transition-all",
         speaking && "ring-primary shadow-[0_0_20px_hsl(var(--primary)/0.6)]",
         raised && "ring-accent",
       )}
@@ -131,34 +131,44 @@ export function VideoGrid({ localStream, participants, presence = [], speakerOn,
   });
 
   return (
-    <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
-      <p className="col-span-full mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="relative flex flex-col h-full w-full gap-2">
+      <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground hidden md:block">
         Participants ({others.length + 1})
       </p>
-      <VideoTile
-        stream={localStream}
-        label={`${user?.email?.split("@")[0] || "You"} (You)`}
-        muted
-        speakerOn={speakerOn}
-        mirror
-        isSelf
-        raised={localRaised}
-      />
-      {others.map((p) => (
+      
+      {/* Remote Participants Grid */}
+      <div className="flex-1 overflow-auto grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-col gap-2 relative z-0">
+        {others.length === 0 ? (
+          <div className="col-span-full flex h-full min-h-[200px] w-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
+            Waiting for others...
+          </div>
+        ) : (
+          others.map((p) => (
+            <div key={p.userId} className="h-full min-h-[250px] lg:min-h-[150px]">
+              <VideoTile
+                stream={p.stream}
+                label={p.email?.split("@")[0] || p.userId.slice(0, 6)}
+                muted={false}
+                speakerOn={speakerOn}
+                raised={!!raisedHands[p.userId]}
+              />
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Local Video - Floating on Mobile, Inline on Desktop */}
+      <div className="absolute right-4 bottom-4 w-28 md:w-full md:static z-20 shadow-2xl md:shadow-none transition-all">
         <VideoTile
-          key={p.userId}
-          stream={p.stream}
-          label={p.email?.split("@")[0] || p.userId.slice(0, 6)}
-          muted={false}
+          stream={localStream}
+          label={`${user?.email?.split("@")[0] || "You"}`}
+          muted
           speakerOn={speakerOn}
-          raised={!!raisedHands[p.userId]}
+          mirror
+          isSelf
+          raised={localRaised}
         />
-      ))}
-      {others.length === 0 && (
-        <div className="col-span-full flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
-          Waiting for others...
-        </div>
-      )}
+      </div>
     </div>
   );
 }
